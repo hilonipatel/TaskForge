@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import {pool} from "./db.js"
 
 dotenv.config();
 
@@ -22,3 +23,20 @@ app.listen(PORT, () => {
   console.log(`TaskForge API running on port ${PORT}`);
 });
 
+app.get("/api/db-test", async (_req, res) => {
+    try {
+      const result = await pool.query("SELECT NOW()");
+  
+      res.json({
+        status: "ok",
+        databaseTime: result.rows[0].now,
+      });
+    } catch (error) {
+      console.error(error);
+  
+      res.status(500).json({
+        status: "error",
+        message: "Database connection failed",
+      });
+    }
+  });  
