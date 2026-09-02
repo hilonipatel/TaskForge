@@ -34,3 +34,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
 );
+
+CREATE TABLE IF NOT EXISTS projects (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER NOT NULL
+        REFERENCES organizations(id)
+        ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    created_by INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE RESTRICT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
