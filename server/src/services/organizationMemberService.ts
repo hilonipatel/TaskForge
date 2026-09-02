@@ -1,5 +1,5 @@
 import { AppError } from "../errors/AppError.js";
-import { findOrganizationMembers, addOrganizationMember, removeOrganizationMember } from "../repositories/organizationMemberRepository.js";
+import { findOrganizationMembers, addOrganizationMember, removeOrganizationMember, updateOrganizationMemberRole } from "../repositories/organizationMemberRepository.js";
 import { findUserByEmail } from "../repositories/userRepository.js";
 import { pool } from "../db.js";
 
@@ -161,4 +161,78 @@ export async function removeMemberFromOrganization(
         organizationId,
         targetUserId
     );
+}
+
+export async function changeMemberRole(
+    organizationId: number,
+    requesterId: number,
+    targetUserId: number,
+    newRole: string
+) {
+    const requester = await pool.query(
+        `
+        SELECT role
+        FROM organization_members
+        WHERE organization_id = $1
+          AND user_id = $2
+        `,
+        [organizationId, requesterId]
+    );
+
+    if (requester.rows.length === 0) {
+        throw new AppError(
+            "You are not a member of this organization",
+            403
+        );
+    }
+
+    const requesterRole = requester.rows[0].role;
+
+    if (requesterRole !== "OWNER" && requesterRole !== "ADMIN") {
+        throw new AppError(
+            "You do not have permission to change member roles",
+            403
+        );
+    }
+
+    const target = await pool.query(
+        `
+        SELECT role
+        FROM organization_members
+        WHERE organization_id = $1
+          AND user_id = $2
+        `,
+        [organizationId, targetUserId]
+    );
+
+    if (target.rows.length === 0) {
+        throw new AppError(
+            "User is not a member of this organization",
+            404
+        );
+    }
+
+    const targetRole = target.rows[0].role;
+
+    if (targetRole === "OWNER") {
+        throw new AppError(
+            "The organization owner role cannot be changed",
+            403
+        );
+    }
+
+    if (newRole === "OWNER") {
+        throw new AppError(
+            "Cannot assign the OWNER role",
+            403
+        );
+    }
+
+    const updatedMember = await updateOrganizationMemberRole(
+        organizationId,
+        targetUserId,
+        newRole
+    );
+
+    return updatedMember;
 }

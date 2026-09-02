@@ -55,3 +55,22 @@ export async function removeOrganizationMember(
 
     return result.rows[0];
 }
+
+export async function updateOrganizationMemberRole(
+    organizationId: number,
+    userId: number,
+    role: string
+) {
+    const result = await pool.query(
+        `
+        UPDATE organization_members
+        SET role = $1
+        WHERE organization_id = $2
+          AND user_id = $3
+        RETURNING user_id, organization_id, role, created_at
+        `,
+        [role, organizationId, userId]
+    );
+
+    return result.rows[0];
+}
