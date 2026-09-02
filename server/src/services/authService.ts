@@ -1,9 +1,11 @@
 import bcrypt from "bcrypt";
 import {
     createUser,
-    findUserByEmail
+    findUserByEmail, 
+    findUserById
 } from "../repositories/userRepository.js";
 import { AppError } from "../errors/AppError.js";
+import { generateToken } from "../utils/jwt.js"
 
 export async function registerUser(
     name: string,
@@ -35,12 +37,28 @@ export async function loginUser(
     if (!user){
         throw new AppError("Invalid email or password", 401);
     }
+    
+    const token = generateToken(user.id);
 
     //Return safe user data without exposing the password hash
     return{
         id: user.id, 
         name: user.name, 
         email: user.email, 
-        created_at: user.created_at
+        created_at: user.created_at,
+        token
     };
+}
+
+export async function getCurrentUser(userId: number) {
+    const user = await findUserById(userId);
+    if (!user){
+        throw new AppError("User not found", 404);
+    }
+    return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        created_at: user.created_at
+    }
 }

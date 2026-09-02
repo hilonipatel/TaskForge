@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { registerUser, loginUser } from "../services/authService.js";
+import { registerUser, loginUser, getCurrentUser } from "../services/authService.js";
 import { registerSchema, loginSchema } from "../validation/authValidation.js"; 
 import { AppError } from "../errors/AppError.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
@@ -47,6 +48,25 @@ router.post("/login", async (req, res) => {
         const user = await loginUser(email, password);
         res.status(200).json(user);
 
+    } catch (error){
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                error: error.message,
+            });
+        }    
+
+        console.error(error);
+
+        return res.status(500).json({
+            error: "Internal server error",
+        });
+    }
+});
+
+router.get("/me", authMiddleware, async (req, res) => {
+    try{
+        const user = await getCurrentUser(req.userId);
+        return res.status(200).json(user);
     } catch (error){
         if (error instanceof AppError) {
             return res.status(error.statusCode).json({
