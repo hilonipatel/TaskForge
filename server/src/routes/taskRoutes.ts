@@ -19,6 +19,7 @@ router.post("/", authMiddleware, async (req, res) => {
 
         const {
             organizationId,
+            projectId,
             title,
             description,
             status,
@@ -28,6 +29,7 @@ router.post("/", authMiddleware, async (req, res) => {
 
         const task = await createTaskForUser(
             req.userId,
+            projectId,
             organizationId,
             title,
             description ?? null,

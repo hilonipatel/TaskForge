@@ -2,6 +2,7 @@ import { pool } from "../db.js";
 
 export async function createTask(
     organizationId: number,
+    projectId: number,
     createdBy: number,
     title: string,
     description: string | null,
@@ -13,6 +14,7 @@ export async function createTask(
         `
         INSERT INTO tasks (
             organization_id,
+            project_id,
             created_by,
             title,
             description,
@@ -20,10 +22,11 @@ export async function createTask(
             priority,
             due_date
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING
             id,
             organization_id,
+            project_id,
             created_by,
             title,
             description,
@@ -35,6 +38,7 @@ export async function createTask(
         `,
         [
             organizationId,
+            projectId,
             createdBy,
             title,
             description,

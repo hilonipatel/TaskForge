@@ -1,9 +1,11 @@
 import { AppError } from "../errors/AppError.js";
 import { createTask, findTasksForUser, findTaskByIdForUser, updateTaskForUser, deleteTaskForUser } from "../repositories/taskRepository.js";
+import { findProjectByIdForUser } from "../repositories/projectRepository.js";
 import { pool } from "../db.js";
 
 export async function createTaskForUser(
     userId: number,
+    projectId: number,
     organizationId: number,
     title: string,
     description: string | null,
@@ -28,8 +30,14 @@ export async function createTaskForUser(
         );
     }
 
+    const project = await findProjectByIdForUser(projectId, userId);
+    if (!project || project.organization_id !== organizationId){
+        throw new AppError ("Project not found", 403);
+    }
+
     return createTask(
         organizationId,
+        projectId,
         userId,
         title,
         description,
