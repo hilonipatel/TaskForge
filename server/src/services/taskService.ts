@@ -7,6 +7,7 @@ export async function createTaskForUser(
     userId: number,
     projectId: number,
     organizationId: number,
+    assigneeId: number | null,
     title: string,
     description: string | null,
     status: string,
@@ -35,10 +36,27 @@ export async function createTaskForUser(
         throw new AppError ("Project not found", 403);
     }
 
+    if (assigneeId != null){
+        const assignee = await pool.query(
+            `
+            SELECT 1
+            FROM organization_members
+            WHERE user_id = $1
+                AND organization_id = $2
+            `,
+            [assigneeId, organizationId]
+        );
+
+        if (assignee.rows.length === 0){
+            throw new AppError("Assignee is not a member of this organization", 403);
+        }
+    }
+
     return createTask(
         organizationId,
         projectId,
         userId,
+        assigneeId,
         title,
         description,
         status,
@@ -68,6 +86,7 @@ export async function updateTask(
     taskId: number,
     userId: number,
     fields: {
+        assigneeId?: number | null;
         title?: string;
         description?: string | null;
         status?: string;
@@ -75,10 +94,28 @@ export async function updateTask(
         dueDate?: string | null;
     }
 ) {
+    if (fields.assigneeId !== undefined && fields.assigneeId !== null) {
+        const assignee = await pool.query(
+            `
+            SELECT 1
+            FROM organization_members om
+            INNER JOIN tasks t
+                ON t.organization_id = om.organization_id
+            WHERE t.id = $1
+              AND om.user_id = $2
+            `,
+            [taskId, fields.assigneeId]
+        );
+    
+        if (assignee.rows.length === 0) {
+            throw new AppError("Assignee is not a member of this organization",403);
+        }
+    }
+    
     const task = await updateTaskForUser(
         taskId,
         userId,
-        fields
+        fields //error here ---> 
     );
 
     if (!task) {

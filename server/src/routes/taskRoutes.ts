@@ -20,6 +20,7 @@ router.post("/", authMiddleware, async (req, res) => {
         const {
             organizationId,
             projectId,
+            assigneeId,
             title,
             description,
             status,
@@ -31,6 +32,7 @@ router.post("/", authMiddleware, async (req, res) => {
             req.userId,
             projectId,
             organizationId,
+            assigneeId ?? null,
             title,
             description ?? null,
             status,
@@ -122,6 +124,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
             taskId,
             req.userId,
             {
+                assigneeId: result.data.assigneeId,
                 title: result.data.title,
                 description: result.data.description,
                 status: result.data.status,

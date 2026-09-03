@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
     organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     project_id INTEGER NOT NULL,
+    assignee_id INTEGER,
     created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     title VARCHAR(200) NOT NULL,
     description TEXT,
@@ -56,5 +57,11 @@ CREATE TABLE IF NOT EXISTS tasks (
         FOREIGN KEY (project_id, organization_id)
         REFERENCES PROJECTS(id, organization_id)
         on DELETE CASCADE
+
+    CONSTRAINT tasks_assignee_organization_fkey
+        FOREIGN KEY (assignee_id, organization_id)
+        REFERENCES organization_members(user_id, organization_id)
+        on DELETE SET NULL
+    
 );
 

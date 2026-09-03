@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createTaskSchema = z.object({
     organizationId: z.number().int().positive(),
     projectId: z.number().int().positive(),
+    assigneeId: z.number().int().positive().nullable().optional(),
     title: z.string().min(1).max(200),
     description: z.string().max(5000).nullable().optional(),
     status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).default("TODO"),
@@ -11,6 +12,7 @@ export const createTaskSchema = z.object({
 });
 
 export const updateTaskSchema = z.object({
+    assigneeId: z.number().int().positive().nullable().optional(),
     title: z.string().min(1).max(200).optional(),
     description: z.string().max(5000).nullable().optional(),
     status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).optional(),

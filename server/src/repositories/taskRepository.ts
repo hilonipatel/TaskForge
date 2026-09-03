@@ -4,6 +4,7 @@ export async function createTask(
     organizationId: number,
     projectId: number,
     createdBy: number,
+    assigneeId: number | null,
     title: string,
     description: string | null,
     status: string,
@@ -16,18 +17,20 @@ export async function createTask(
             organization_id,
             project_id,
             created_by,
+            assignee_id,
             title,
             description,
             status,
             priority,
             due_date
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING
             id,
             organization_id,
             project_id,
             created_by,
+            assignee_id,
             title,
             description,
             status,
@@ -40,6 +43,7 @@ export async function createTask(
             organizationId,
             projectId,
             createdBy,
+            assigneeId,
             title,
             description,
             status,
@@ -57,6 +61,8 @@ export async function findTasksForUser(userId: number) {
         SELECT
             t.id,
             t.organization_id,
+            t.project_id,
+            t.assignee_id,
             t.created_by,
             t.title,
             t.description,
@@ -86,6 +92,8 @@ export async function findTaskByIdForUser(
         SELECT
             t.id,
             t.organization_id,
+            t.project_id,
+            t.assignee_id,
             t.created_by,
             t.title,
             t.description,
@@ -110,6 +118,7 @@ export async function updateTaskForUser(
     taskId: number,
     userId: number,
     fields: {
+        assigneeId?: number | null;
         title?: string;
         description?: string | null;
         status?: string;
@@ -120,6 +129,11 @@ export async function updateTaskForUser(
     const updates: string[] = [];
     const values: unknown[] = [];
 
+    if (fields.assigneeId !== undefined){
+        values.push(fields.assigneeId);
+        updates.push(`assignee_id = $${values.length}`);
+    }
+    
     if (fields.title !== undefined) {
         values.push(fields.title);
         updates.push(`title = $${values.length}`);
@@ -164,6 +178,8 @@ export async function updateTaskForUser(
         RETURNING
             t.id,
             t.organization_id,
+            t.project_id,
+            t.assignee_id,
             t.created_by,
             t.title,
             t.description,
