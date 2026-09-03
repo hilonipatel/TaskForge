@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { loginUser } from "../services/api";
 import { useAuth } from "../services/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-function LoginPage({
-    onRegisterClick,
-}: {
-    onRegisterClick: () => void;
-}) {
+function LoginPage() {
+
     const { setUser, loading } = useAuth(); 
-    
+    const navigate = useNavigate();
+
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     
@@ -26,6 +25,8 @@ function LoginPage({
                 email: data.email,
                 created_at: data.created_at,
             });
+            
+            navigate("/dashboard");
             
             console.log("Login successful:", data);
         
@@ -69,7 +70,7 @@ function LoginPage({
                 </button>
             </form>
 
-            <button type="button" onClick={onRegisterClick}>
+            <button type="button" onClick={() => navigate("/register")}>
                 Create an account
             </button>
 

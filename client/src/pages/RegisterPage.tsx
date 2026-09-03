@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { registerUser } from "../services/api";
+import { useNavigate } from "react-router-dom";
 
-function RegisterPage({
-    onRegisterSuccess,
-    onLoginClick,
-}: {
-    onRegisterSuccess: () => void;
-    onLoginClick: () => void;
-}) {
+function RegisterPage() {
+    const navigate = useNavigate();
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -23,9 +19,11 @@ function RegisterPage({
             setEmail("");
             setPassword("");
 
+            navigate("/login");
+
             console.log("Registration successful", data);
 
-            onRegisterSuccess();
+            navigate("/login");
         } catch (error) {
             console.error("Registration failed:", error);
 
@@ -80,7 +78,7 @@ function RegisterPage({
                 </button>
             </form>
 
-            <button type="button" onClick={onLoginClick}>
+            <button type="button" onClick={() => navigate("/login")}>
                 Back to Login
             </button>
         </div>
