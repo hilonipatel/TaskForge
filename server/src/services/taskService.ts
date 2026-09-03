@@ -15,40 +15,34 @@ export async function createTaskForUser(
     priority: string,
     dueDate: string | null
 ) {
-    const membership = await pool.query(
-        `
-        SELECT role
-        FROM organization_members
-        WHERE user_id = $1
-          AND organization_id = $2
-        `,
-        [userId, organizationId]
+
+    await requireOrganizationRole(
+        userId,
+        organizationId,
+        ["OWNER", "ADMIN", "MEMBER"]
     );
 
-    if (membership.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
+    const project = await findProjectByIdForUser(
+        projectId,
+        userId
+    );
 
-    const project = await findProjectByIdForUser(projectId, userId);
-    if (!project || project.organization_id !== organizationId){
+    if (!project || project.organization_id !== organizationId) {
         throw new AppError ("Project not found", 403);
     }
 
-    if (assigneeId != null){
+    if (assigneeId != null) {
         const assignee = await pool.query(
             `
             SELECT 1
             FROM organization_members
             WHERE user_id = $1
-                AND organization_id = $2
+              AND organization_id = $2
             `,
             [assigneeId, organizationId]
         );
 
-        if (assignee.rows.length === 0){
+        if (assignee.rows.length === 0) {
             throw new AppError("Assignee is not a member of this organization", 403);
         }
     }
@@ -95,24 +89,6 @@ export async function updateTask(
         dueDate?: string | null;
     }
 ) {
-    if (fields.assigneeId !== undefined && fields.assigneeId !== null) {
-        const assignee = await pool.query(
-            `
-            SELECT 1
-            FROM organization_members om
-            INNER JOIN tasks t
-                ON t.organization_id = om.organization_id
-            WHERE t.id = $1
-              AND om.user_id = $2
-            `,
-            [taskId, fields.assigneeId]
-        );
-    
-        if (assignee.rows.length === 0) {
-            throw new AppError("Assignee is not a member of this organization",403);
-        }
-    }
-
     const task = await findTaskByIdForUser(
         taskId,
         userId
@@ -125,16 +101,35 @@ export async function updateTask(
     await requireOrganizationRole(
         userId,
         task.organization_id,
-        ["OWNER", "ADMIN"]
+        ["OWNER", "ADMIN", "MEMBER"]
     );
-    
+
+    if (fields.assigneeId !== undefined && fields.assigneeId !== null) {
+        const assignee = await pool.query(
+            `
+            SELECT 1
+            FROM organization_members
+            WHERE user_id = $1
+              AND organization_id = $2
+            `,
+            [fields.assigneeId, task.organization_id]
+        );
+
+        if (assignee.rows.length === 0) {
+            throw new AppError(
+                "Assignee is not a member of this organization",
+                403
+            );
+        }
+    }
+
     const updatedTask = await updateTaskForUser(
         taskId,
         userId,
-        fields 
+        fields
     );
 
-    if (!updateTask) {
+    if (!updatedTask) {
         throw new AppError("Task not found", 404);
     }
 
@@ -145,7 +140,7 @@ export async function deleteTask(
     taskId: number,
     userId: number
 ) {
-    const task = await deleteTaskForUser(
+    const task = await findTaskByIdForUser(
         taskId,
         userId
     );
@@ -171,5 +166,3 @@ export async function deleteTask(
 
     return deletedTask;
 }
-
-
