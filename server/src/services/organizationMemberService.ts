@@ -2,27 +2,17 @@ import { AppError } from "../errors/AppError.js";
 import { findOrganizationMembers, addOrganizationMember, removeOrganizationMember, updateOrganizationMemberRole } from "../repositories/organizationMemberRepository.js";
 import { findUserByEmail } from "../repositories/userRepository.js";
 import { pool } from "../db.js";
+import { requireOrganizationRole } from "./authorizationService.js";
 
 export async function getOrganizationMembers(
     organizationId: number,
     userId: number
 ) {
-    const membership = await pool.query(
-        `
-        SELECT 1
-        FROM organization_members
-        WHERE organization_id = $1
-          AND user_id = $2
-        `,
-        [organizationId, userId]
+    await requireOrganizationRole(
+        userId,
+        organizationId,
+        ["OWNER", "ADMIN", "MEMBER", "VIEWER"]
     );
-
-    if (membership.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
 
     return findOrganizationMembers(organizationId);
 }
@@ -33,39 +23,16 @@ export async function addMemberToOrganization(
     email: string,
     role: string
 ) {
-    const requester = await pool.query(
-        `
-        SELECT role
-        FROM organization_members
-        WHERE organization_id = $1
-          AND user_id = $2
-        `,
-        [organizationId, requesterId]
+    await requireOrganizationRole(
+        requesterId,
+        organizationId,
+        ["OWNER", "ADMIN"]
     );
-
-    if (requester.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
-
-    const requesterRole = requester.rows[0].role;
-
-    if (requesterRole !== "OWNER" && requesterRole !== "ADMIN") {
-        throw new AppError(
-            "You do not have permission to add members",
-            403
-        );
-    }
 
     const user = await findUserByEmail(email);
 
     if (!user) {
-        throw new AppError(
-            "User not found",
-            404
-        );
+        throw new AppError("User not found", 404);
     }
 
     const existingMembership = await pool.query(
@@ -79,10 +46,7 @@ export async function addMemberToOrganization(
     );
 
     if (existingMembership.rows.length > 0) {
-        throw new AppError(
-            "User is already a member of this organization",
-            409
-        );
+        throw new AppError("User is already a member of this organization", 409);
     }
 
     return addOrganizationMember(
@@ -90,7 +54,6 @@ export async function addMemberToOrganization(
         user.id,
         role
     );
-
 }
 
 export async function removeMemberFromOrganization(
@@ -98,31 +61,11 @@ export async function removeMemberFromOrganization(
     requesterId: number,
     targetUserId: number
 ) {
-    const requester = await pool.query(
-        `
-        SELECT role
-        FROM organization_members
-        WHERE organization_id = $1
-          AND user_id = $2
-        `,
-        [organizationId, requesterId]
+    const requesterRole = await requireOrganizationRole(
+        requesterId,
+        organizationId,
+        ["OWNER", "ADMIN"]
     );
-
-    if (requester.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
-
-    const requesterRole = requester.rows[0].role;
-
-    if (requesterRole !== "OWNER" && requesterRole !== "ADMIN") {
-        throw new AppError(
-            "You do not have permission to remove members",
-            403
-        );
-    }
 
     const target = await pool.query(
         `
@@ -135,26 +78,20 @@ export async function removeMemberFromOrganization(
     );
 
     if (target.rows.length === 0) {
-        throw new AppError(
-            "Member not found",
-            404
-        );
+        throw new AppError("Member not found", 404);
     }
 
     const targetRole = target.rows[0].role;
 
-    if (requesterRole === "ADMIN" && targetRole === "OWNER") {
-        throw new AppError(
-            "Admins cannot remove the organization owner",
-            403
-        );
+    if (
+        requesterRole === "ADMIN" &&
+        targetRole === "OWNER"
+    ) {
+        throw new AppError("Admins cannot remove the organization owner", 403);
     }
 
     if (requesterId === targetUserId) {
-        throw new AppError(
-            "You cannot remove yourself from the organization",
-            400
-        );
+        throw new AppError("You cannot remove yourself from the organization", 400);
     }
 
     return removeOrganizationMember(
@@ -169,31 +106,11 @@ export async function changeMemberRole(
     targetUserId: number,
     newRole: string
 ) {
-    const requester = await pool.query(
-        `
-        SELECT role
-        FROM organization_members
-        WHERE organization_id = $1
-          AND user_id = $2
-        `,
-        [organizationId, requesterId]
+    await requireOrganizationRole(
+        requesterId,
+        organizationId,
+        ["OWNER", "ADMIN"]
     );
-
-    if (requester.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
-
-    const requesterRole = requester.rows[0].role;
-
-    if (requesterRole !== "OWNER" && requesterRole !== "ADMIN") {
-        throw new AppError(
-            "You do not have permission to change member roles",
-            403
-        );
-    }
 
     const target = await pool.query(
         `
@@ -206,33 +123,22 @@ export async function changeMemberRole(
     );
 
     if (target.rows.length === 0) {
-        throw new AppError(
-            "User is not a member of this organization",
-            404
-        );
+        throw new AppError("User is not a member of this organization", 404);
     }
 
     const targetRole = target.rows[0].role;
 
     if (targetRole === "OWNER") {
-        throw new AppError(
-            "The organization owner role cannot be changed",
-            403
-        );
+        throw new AppError("The organization owner role cannot be changed", 403);
     }
 
     if (newRole === "OWNER") {
-        throw new AppError(
-            "Cannot assign the OWNER role",
-            403
-        );
+        throw new AppError("Cannot assign the OWNER role", 403);
     }
 
-    const updatedMember = await updateOrganizationMemberRole(
+    return updateOrganizationMemberRole(
         organizationId,
         targetUserId,
         newRole
     );
-
-    return updatedMember;
 }
