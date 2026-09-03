@@ -2,6 +2,7 @@ import { AppError } from "../errors/AppError.js";
 import { createTask, findTasksForUser, findTaskByIdForUser, updateTaskForUser, deleteTaskForUser } from "../repositories/taskRepository.js";
 import { findProjectByIdForUser } from "../repositories/projectRepository.js";
 import { pool } from "../db.js";
+import { requireOrganizationRole } from "./authorizationService.js";
 
 export async function createTaskForUser(
     userId: number,
@@ -111,18 +112,33 @@ export async function updateTask(
             throw new AppError("Assignee is not a member of this organization",403);
         }
     }
-    
-    const task = await updateTaskForUser(
+
+    const task = await findTaskByIdForUser(
         taskId,
-        userId,
-        fields //error here ---> 
+        userId
     );
 
     if (!task) {
         throw new AppError("Task not found", 404);
     }
 
-    return task;
+    await requireOrganizationRole(
+        userId,
+        task.organization_id,
+        ["OWNER", "ADMIN"]
+    );
+    
+    const updatedTask = await updateTaskForUser(
+        taskId,
+        userId,
+        fields 
+    );
+
+    if (!updateTask) {
+        throw new AppError("Task not found", 404);
+    }
+
+    return updatedTask;
 }
 
 export async function deleteTask(
@@ -138,7 +154,22 @@ export async function deleteTask(
         throw new AppError("Task not found", 404);
     }
 
-    return task;
+    await requireOrganizationRole(
+        userId,
+        task.organization_id,
+        ["OWNER", "ADMIN"]
+    );
+
+    const deletedTask = await deleteTaskForUser(
+        taskId,
+        userId
+    );
+
+    if (!deletedTask) {
+        throw new AppError("Task not found", 404);
+    }
+
+    return deletedTask;
 }
 
 

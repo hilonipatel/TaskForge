@@ -70,7 +70,7 @@ export async function updateProject(
     await requireOrganizationRole(
         userId,
         project.organization_id,
-        ["OWNER", "ADMIN"]
+        ["OWNER", "ADMIN", "MEMBER"]
     );
 
     const updatedProject = await updateProjectForUser(

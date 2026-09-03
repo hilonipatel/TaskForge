@@ -213,5 +213,3 @@ export async function deleteTaskForUser(
 
     return result.rows[0];
 }
-
-
