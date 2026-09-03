@@ -6,7 +6,7 @@ import {
     updateProjectForUser,
     deleteProjectForUser
 } from "../repositories/projectRepository.js";
-import { pool } from "../db.js";
+import { requireOrganizationRole } from "./authorizationService.js";
 
 export async function createProjectForUser(
     userId: number,
@@ -14,22 +14,12 @@ export async function createProjectForUser(
     name: string,
     description: string | null
 ) {
-    const membership = await pool.query(
-        `
-        SELECT 1
-        FROM organization_members
-        WHERE user_id = $1
-          AND organization_id = $2
-        `,
-        [userId, organizationId]
+    
+    await requireOrganizationRole(
+        userId,
+        organizationId,
+        ["OWNER", "ADMIN", "MEMBER"]
     );
-
-    if (membership.rows.length === 0) {
-        throw new AppError(
-            "You are not a member of this organization",
-            403
-        );
-    }
 
     return createProject(
         organizationId,
@@ -67,24 +57,8 @@ export async function updateProject(
         description?: string | null;
     }
 ) {
-    const project = await updateProjectForUser(
-        projectId,
-        userId,
-        fields
-    );
 
-    if (!project) {
-        throw new AppError("Project not found", 404);
-    }
-
-    return project;
-}
-
-export async function deleteProject(
-    projectId: number,
-    userId: number
-) {
-    const project = await deleteProjectForUser(
+    const project = await findProjectByIdForUser(
         projectId,
         userId
     );
@@ -93,5 +67,52 @@ export async function deleteProject(
         throw new AppError("Project not found", 404);
     }
 
-    return project;
+    await requireOrganizationRole(
+        userId,
+        project.organization_id,
+        ["OWNER", "ADMIN"]
+    );
+
+    const updatedProject = await updateProjectForUser(
+        projectId, 
+        userId, 
+        fields
+    );
+
+    if (!updatedProject){
+        throw new AppError("Project not found", 404);
+    }
+
+    return updatedProject;
+}
+
+export async function deleteProject(
+    projectId: number,
+    userId: number
+) {
+    const project = await findProjectByIdForUser(
+        projectId,
+        userId
+    );
+
+    if (!project) {
+        throw new AppError("Project not found", 404);
+    }
+
+    await requireOrganizationRole(
+        userId,
+        project.organization_id,
+        ["OWNER", "ADMIN"]
+    );
+
+    const deletedProject = await deleteProjectForUser(
+        projectId,
+        userId
+    );
+
+    if (!deletedProject) {
+        throw new AppError("Project not found", 404);
+    }
+
+    return deletedProject;
 }
