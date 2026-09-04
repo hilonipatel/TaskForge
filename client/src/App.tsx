@@ -5,6 +5,7 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import ProtectedRoute from "./components/ProtectedRoutes";
 import NotFoundPage from "./pages/NotFoundPage";
+import OrganizationsPage from "./pages/OrganizationsPage";
 
 function App() {
     return (
@@ -34,6 +35,14 @@ function App() {
                         path="/" element={<Navigate to="/login" replace />} />
                     <Route
                         path="*" element={<NotFoundPage />} />
+                    <Route
+                        path="/organizations"
+                        element={
+                            <ProtectedRoute>
+                                <OrganizationsPage />
+                            </ProtectedRoute>
+                        }
+                    />
                 </Routes>
             </AuthProvider>
         </BrowserRouter>
