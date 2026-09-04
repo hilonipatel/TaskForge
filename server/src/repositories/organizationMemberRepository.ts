@@ -36,7 +36,29 @@ export async function addOrganizationMember(
         `,
         [userId, organizationId, role]
     );
-    return result.rows[0];
+
+    const membership = result.rows[0];
+
+    const userResult = await pool.query(
+        `
+        SELECT
+            id,
+            name,
+            email
+        FROM users
+        WHERE id = $1
+        `,
+        [userId]
+    );
+
+    const user = userResult.rows[0];
+
+    return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: membership.role,
+    };
 }
 
 export async function removeOrganizationMember(
