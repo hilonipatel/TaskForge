@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
-import { createOrganizationForUser } from "../services/organizationService.js";
+import { createOrganizationForUser, getOrganizationsForUser } from "../services/organizationService.js";
 import { createOrganizationSchema, addMemberSchema, updateMemberRoleSchema } from "../validation/organizationValidation.js";
 import { getOrganizationMembers, addMemberToOrganization, removeMemberFromOrganization, changeMemberRole } from "../services/organizationMemberService.js";
 import { AppError } from "../errors/AppError.js";
@@ -24,6 +24,20 @@ router.post("/", authMiddleware, async (req, res) => {
         );
 
         return res.status(201).json(organization);
+    } catch (error) {
+        console.error(error);
+
+        return res.status(500).json({
+            error: "Internal server error"
+        });
+    }
+});
+
+router.get("/", authMiddleware, async (req, res) => {
+    try {
+        const organizations = await getOrganizationsForUser(req.userId);
+
+        return res.status(200).json(organizations);
     } catch (error) {
         console.error(error);
 

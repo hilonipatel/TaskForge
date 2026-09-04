@@ -42,3 +42,22 @@ export async function createOrganization(
         client.release();
     }
 }
+
+export async function findOrganizationsForUser(userId: number) {
+    const result = await pool.query(
+        `
+        SELECT
+            o.id,
+            o.name,
+            o.created_at
+        FROM organizations o
+        INNER JOIN organization_members om
+            ON om.organization_id = o.id
+        WHERE om.user_id = $1
+        ORDER BY o.name ASC
+        `,
+        [userId]
+    );
+
+    return result.rows;
+}
