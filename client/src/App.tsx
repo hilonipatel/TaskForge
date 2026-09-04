@@ -32,6 +32,14 @@ function App() {
                         }
                     />
                     <Route
+                        path="/organizations"
+                        element={
+                            <ProtectedRoute>
+                                <OrganizationsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
                         path="/" element={<Navigate to="/login" replace />} />
                     <Route
                         path="*" element={<NotFoundPage />} />

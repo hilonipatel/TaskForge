@@ -1,7 +1,9 @@
 import { useAuth } from "../services/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 function DashboardPage() {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
 
     return (
         <div>
@@ -12,6 +14,13 @@ function DashboardPage() {
                 <div>
                     <p>Welcome, {user.name}</p>
                     <p>Email: {user.email}</p>
+
+                    <button
+                        type="button"
+                        onClick={() => navigate("/organizations")}
+                    >
+                        Organizations
+                    </button>
 
                     <button type="button" onClick={logout}>
                         Logout

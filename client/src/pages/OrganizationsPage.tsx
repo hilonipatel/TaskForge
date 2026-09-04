@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { createOrganization, getOrganizations, getOrganizationMembers, addOrganizationMember, removeOrganizationMember, updateOrganizationMemberRole,} from "../services/api";
 import type { Organization, OrganizationMember } from "../types/organization";
+import { useAuth } from "../services/AuthContext";
 
 function OrganizationsPage() {
+    const navigate = useNavigate();
+    const{ user } = useAuth();
     const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
     const [members, setMembers] = useState<OrganizationMember[]>([]);
     const [name, setName] = useState("");
@@ -10,6 +14,13 @@ function OrganizationsPage() {
     const [error, setError] = useState("");
     const [memberEmail, setMemberEmail] = useState("");
     const [memberRole, setMemberRole] = useState("MEMBER");
+
+    const currentUserMembership = members.find(
+        (member) => member.id === user?.id
+    );
+    
+    const currentUserRole = currentUserMembership?.role;
+    
  
     useEffect(() => {
         const loadOrganizations = async () => {
@@ -179,7 +190,12 @@ function OrganizationsPage() {
         <div>
             <h1>TaskForge</h1>
             <h2>Organizations</h2>
-
+            <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+            >
+                Back to Dashboard
+            </button>
             {error && <p>{error}</p>}
 
             <form onSubmit={handleSubmit}>
@@ -224,44 +240,46 @@ function OrganizationsPage() {
                     <h3>Selected Organization</h3>
                     <p>Name: {selectedOrganization.name}</p>
                     <p>ID: {selectedOrganization.id}</p>
+                    <p>Your role: {currentUserRole}</p>
+                    {(currentUserRole == "OWNER" || currentUserRole === "ADMIN") && (
+                        <>
+                            <h4>Add Member</h4>
+                            <form onSubmit={handleAddMember}>
+                                <div>
+                                    <label htmlFor="member-email">
+                                        Email
+                                    </label>
 
-                    <h4>Add Member</h4>
+                                    <input
+                                        id="member-email"
+                                        type="email"
+                                        value={memberEmail}
+                                        onChange={(event) => setMemberEmail(event.target.value)}
+                                    />
+                                </div>
 
-                    <form onSubmit={handleAddMember}>
-                        <div>
-                            <label htmlFor="member-email">
-                                 Email
-                            </label>
+                                <div>
+                                    <label htmlFor="member-role">
+                                        Role
+                                    </label>
 
-                            <input
-                                id="member-email"
-                                type="email"
-                                value={memberEmail}
-                                onChange={(event) => setMemberEmail(event.target.value)}
-                            />
-                        </div>
+                                    <select
+                                        id="member-role"
+                                        value={memberRole}
+                                        onChange={(event) => setMemberRole(event.target.value)}
+                                    >
+                                        <option value="MEMBER">Member</option>
+                                        <option value="ADMIN">Admin</option>
+                                        <option value="VIEWER">Viewer</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label htmlFor="member-role">
-                                Role
-                            </label>
-
-                            <select
-                                id="member-role"
-                                value={memberRole}
-                                onChange={(event) => setMemberRole(event.target.value)}
-                            >
-                                <option value="MEMBER">Member</option>
-                                <option value="ADMIN">Admin</option>
-                                <option value="VIEWER">Viewer</option>
-                            </select>
-                        </div>
-
-                        <button type="submit">
-                            Add Member
-                        </button>
-                    </form>
-
+                                <button type="submit">
+                                    Add Member
+                                </button>
+                            </form>
+                        </>
+                    )}
                     <h4>Members</h4>
 
                     {members.length === 0 ? (
@@ -271,33 +289,37 @@ function OrganizationsPage() {
                             {members.map((member) => (
                                 <li key={member.id}>
                                     {member.name} — {member.email}
+                                    
                                     {member.role === "OWNER" ? (
                                         <span> - OWNER</span>
                                     ) : (
-                                        <select
-                                            value={member.role}
-                                            onChange={(event) =>
-                                                handleChangeMemberRole(
-                                                    member.id,
-                                                    event.target.value
-                                                )
-                                            }
-                                        >
-                                            <option value="MEMBER">Member</option>
-                                            <option value="ADMIN">Admin</option>
-                                            <option value="VIEWER">Viewer</option>
-                                        </select>
-                                    )}
+                                        <>
+                                            {(currentUserRole === "OWNER" || currentUserRole === "ADMIN") && (
+                                                <select
+                                                    value={member.role}
+                                                    onChange={(event) =>
+                                                        handleChangeMemberRole(
+                                                            member.id,
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="MEMBER">Member</option>
+                                                    <option value="ADMIN">Admin</option>
+                                                    <option value="VIEWER">Viewer</option>
+                                                </select>
+                                            )}
 
-                                    {member.role !== "OWNER" && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveMember(member.id)}
-                                        >
-                                            Remove
-                                        </button>
+                                            {(currentUserRole === "OWNER" || currentUserRole === "ADMIN") && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveMember(member.id)}
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </>
                                     )}
-
                                 </li>
                             ))}
 
