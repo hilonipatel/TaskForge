@@ -22,6 +22,20 @@ function DashboardPage() {
                         Organizations
                     </button>
 
+                    <button
+                        type="button"
+                        onClick={() => navigate("/projects")}
+                    >
+                        Projects
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => navigate("/tasks")}
+                    >
+                        Tasks
+                    </button>
+
                     <button type="button" onClick={logout}>
                         Logout
                     </button>

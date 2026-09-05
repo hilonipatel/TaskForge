@@ -95,6 +95,98 @@ export async function getOrganizations() {
     return data;
 }
 
+export async function getProjects() {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/projects`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch projects");
+    }
+
+    return data;
+}
+
+export async function createProject(
+    organizationId: number,
+    name: string,
+    description?: string | null
+) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/projects`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+            organizationId,
+            name,
+            description,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to create project");
+    }
+
+    return data;
+}
+
+export async function updateProject(
+    projectId: number,
+    project: {
+        name?: string;
+        description?: string | null;
+    }
+) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/projects/${projectId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(project),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to update project");
+    }
+
+    return data;
+}
+
+export async function deleteProject(projectId: number) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/projects/${projectId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete project");
+    }
+}
+
+
 export async function getOrganizationMembers(organizationId: number) {
     const token = getToken();
 
@@ -200,4 +292,100 @@ export async function updateOrganizationMemberRole(
     }
 
     return data;
+}
+
+export async function getTasks() {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/tasks`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch tasks");
+    }
+
+    return data;
+}
+
+export async function createTask(task: {
+    organizationId: number;
+    projectId: number;
+    assigneeId?: number | null;
+    title: string;
+    description?: string | null;
+    status?: string;
+    priority?: string;
+    dueDate?: string | null;
+}) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/tasks`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(task),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to create task");
+    }
+
+    return data;
+}
+
+export async function updateTask(
+    taskId: number,
+    task: {
+        assigneeId?: number | null;
+        title?: string;
+        description?: string | null;
+        status?: string;
+        priority?: string;
+        dueDate?: string | null;
+    }
+) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(task),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Failed to update task");
+    }
+
+    return data;
+}
+
+export async function deleteTask(taskId: number) {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete task");
+    }
 }

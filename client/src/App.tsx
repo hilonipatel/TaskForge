@@ -6,6 +6,9 @@ import DashboardPage from "./pages/DashboardPage";
 import ProtectedRoute from "./components/ProtectedRoutes";
 import NotFoundPage from "./pages/NotFoundPage";
 import OrganizationsPage from "./pages/OrganizationsPage";
+import TasksPage from "./pages/TaskPage";
+import ProjectsPage from "./pages/ProjectsPage";
+import ProjectDetailsPage from "./pages/ProjectDetailsPage"
 
 function App() {
     return (
@@ -40,14 +43,32 @@ function App() {
                         }
                     />
                     <Route
+                        path="/projects"
+                        element={
+                            <ProtectedRoute>
+                                <ProjectsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/projects/:projectId"
+                        element={
+                            <ProtectedRoute>
+                                <ProjectDetailsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
                         path="/" element={<Navigate to="/login" replace />} />
                     <Route
                         path="*" element={<NotFoundPage />} />
+                    
                     <Route
-                        path="/organizations"
+                        path="/tasks"
                         element={
                             <ProtectedRoute>
-                                <OrganizationsPage />
+                                <TasksPage />
                             </ProtectedRoute>
                         }
                     />
