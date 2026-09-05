@@ -284,6 +284,13 @@ function TasksPage() {
                 Back to Dashboard
             </button>
 
+            <button
+                type="button"
+                onClick={() => navigate("/projects")}
+            >
+                Back to Projects
+            </button>
+
             <h3>Create Task</h3>
 
             <form onSubmit={handleCreateTask}>

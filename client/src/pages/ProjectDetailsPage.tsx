@@ -121,6 +121,15 @@ function ProjectDetailsPage() {
                 Back to Projects
             </button>
 
+            <button
+                type="button"
+                onClick={() =>
+                    navigate("/tasks")
+                }
+            >
+                View All Tasks
+            </button>
+
             <h2>{project.name}</h2>
 
             <p>
