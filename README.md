@@ -56,7 +56,7 @@ Organizations support four roles:
 Roles are assigned per organization, so the same user can have different roles in different organizations.
 
 ## Application Structure
-
+```text
 User
   ↓
 Organization
@@ -64,10 +64,3 @@ Organization
 Projects
   ↓
 Tasks
-
-## About Me
-
-I'm a Computer Science student at Rutgers University pursuing a B.A. in Computer Science.
-
-I'm graduating in January 2027, one semester early, and I'm currently seeking software engineering and full-stack opportunities.
-
