@@ -4,10 +4,6 @@ A full-stack project management application built with React, TypeScript, Node.j
 
 Users can create organizations, manage members, create projects, and manage tasks with different roles and permissions.
 
-About Me
-I'm a Computer Science student at Rutgers University pursuing a B.A. in Computer Science.
-I'm graduating in January 2027, one semester early, and I'm currently looking for software engineering and full-stack opportunities.
-
 ## Features
 
 - User registration and login
@@ -61,7 +57,6 @@ Roles are assigned per organization, so the same user can have different roles i
 
 ## Application Structure
 
-```text
 User
   ↓
 Organization
@@ -69,3 +64,10 @@ Organization
 Projects
   ↓
 Tasks
+
+## About Me
+
+I'm a Computer Science student at Rutgers University pursuing a B.A. in Computer Science.
+
+I'm graduating in January 2027, one semester early, and I'm currently seeking software engineering and full-stack opportunities.
+
