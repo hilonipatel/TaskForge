@@ -1,9 +1,9 @@
 SaaS Project Management Platform
 A full-stack project management application I built using React, TypeScript, Node.js, Express, and SQL.
-The goal of the project was to build something similar to a small SaaS project management platform where users can create organizations, manage members, create projects, and manage tasks.
+The application allows users to create organizations, manage members, create projects, and manage tasks. I built the project to get hands-on experience with full-stack development, REST APIs, authentication, databases, and building a larger application from frontend to backend.
 
-The project also gave me experience working with authentication, role-based permissions, REST APIs, database access, and organizing a backend into separate layers.
-
+Status: Actively Developed
+Expected Graduation: January 2027 — Rutgers University, B.A. in Computer Science
 Features
 User registration and login
 JWT authentication
@@ -17,20 +17,16 @@ Task priorities
 Task statuses
 Due dates
 Role-based UI
-Backend authorization
+Backend security checks
 Request validation
 API error handling
 Roles
-Each organization has its own members and roles.
-The current roles are:
-
+Each organization can have different types of members:
 OWNER
 ADMIN
 MEMBER
 VIEWER
-Roles are tied to the organization membership rather than the user globally.
-For example, a user could be an OWNER in one organization and a MEMBER in another.
-
+Roles are specific to each organization, so the same user can have different roles in different organizations.
 Tech Stack
 Frontend
 React
@@ -58,67 +54,41 @@ User
  ↓
 Organization
  ↓
-Membership / Role
+Projects
  ↓
-Project
- ↓
-Task
+Tasks
 
 Projects belong to organizations, and tasks belong to projects.
-This means users should only be able to access projects and tasks that belong to organizations they have access to.
+Users can work with the organizations they are members of and manage projects and tasks based on their role.
 
-Authentication
-The application uses JWTs for authentication.
-After logging in, the frontend stores the token and sends it with authenticated API requests:
+Authentication & Security
+The application uses JWT authentication for protected API requests.
+After logging in, the frontend stores the authentication token and sends it with API requests:
 
 Authorization: Bearer <token>
 
-The backend verifies the token and attaches the authenticated user's ID to the request.
-There are currently three main authentication endpoints:
+The backend verifies the token before allowing access to protected endpoints.
+Security checks are handled by the backend rather than relying only on the React frontend. This prevents users from bypassing frontend restrictions by manually sending requests to the API.
 
-POST /api/auth/register
-POST /api/auth/login
-GET /api/auth/me
-
-Role-Based Access Control
-One of the main parts of the project was making sure permissions are handled on the backend instead of only hiding buttons in React.
-For example, a VIEWER might not see a "Create Task" button, but that alone isn't enough.
-
-If they manually send:
-
-POST /api/tasks
-
-the backend still checks their organization membership and role before allowing the request.
-The general authorization flow is:
-
-Authenticated user
-       ↓
-Organization membership
-       ↓
-User's role
-       ↓
-Permission check
-       ↓
-Allow or reject request
-
-This was an important part of the project because it helped me understand the difference between frontend permissions and actual API security.
 Projects
 Projects belong to an organization.
-Available project operations include:
+Users can:
 
+Create projects
+View projects
+Edit projects
+Delete projects
+View project details
+Project endpoints include:
 POST   /api/projects
 GET    /api/projects
 GET    /api/projects/:id
 PATCH  /api/projects/:id
 DELETE /api/projects/:id
 
-Projects currently contain information such as:
-Project name
-Description
-Organization ID
 Tasks
-Tasks belong to both a project and an organization.
-A task can contain:
+Tasks belong to projects and organizations.
+Tasks can contain:
 
 Title
 Description
@@ -139,99 +109,56 @@ MEDIUM
 HIGH
 
 The task page allows users to create, edit, complete, and delete tasks depending on their permissions.
-Tasks are also grouped by project and sorted so that unfinished and more urgent tasks appear first.
+Tasks can also be grouped by project and sorted by urgency.
 
-Backend Structure
-I organized the backend into separate layers instead of putting database and business logic directly inside the route handlers.
-The structure is roughly:
+API
+The backend runs locally on:
+http://localhost:5050
 
-server/src/
+The frontend uses:
+http://localhost:5050/api
 
-├── middleware/
-├── repositories/
-├── routes/
-├── services/
-├── types/
-├── utils/
-├── validation/
-└── errors/
-
-The main flow is:
-Route
- ↓
 Authentication
- ↓
-Validation
- ↓
-Service
- ↓
-Repository
- ↓
-Database
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
 
-Routes
-Routes handle the HTTP requests and responses.
-Examples:
+Organizations
+POST   /api/organizations
+GET    /api/organizations
+DELETE /api/organizations/:organizationId
 
-authRoutes.ts
-organizationRoutes.ts
-projectRoutes.ts
-taskRoutes.ts
+Projects
+POST   /api/projects
+GET    /api/projects
+GET    /api/projects/:id
+PATCH  /api/projects/:id
+DELETE /api/projects/:id
 
-Middleware
-Authentication middleware verifies JWTs and identifies the current user.
-Validation
-Request data is validated before reaching the service layer.
-Examples:
+Tasks
+POST   /api/tasks
+GET    /api/tasks
+GET    /api/tasks/:id
+PATCH  /api/tasks/:id
+DELETE /api/tasks/:id
 
-authValidation.ts
-organizationValidation.ts
-projectValidation.ts
-taskValidation.ts
-
-Services
-The service layer contains the main application logic and authorization checks.
-Examples:
-
-authService.ts
-organizationService.ts
-organizationMemberService.ts
-projectService.ts
-taskService.ts
-
-Repositories
-Repositories handle database operations so database queries aren't mixed into the route handlers.
-Frontend API Service
-Frontend API calls are kept in:
-src/services/api.ts
-
-This file contains functions for things like:
-loginUser()
-registerUser()
-
-getOrganizations()
-createOrganization()
-deleteOrganization()
-
-getOrganizationMembers()
-addOrganizationMember()
-removeOrganizationMember()
-updateOrganizationMemberRole()
-
-getProjects()
-createProject()
-updateProject()
-deleteProject()
-
-getTasks()
-createTask()
-updateTask()
-deleteTask()
-
-This keeps the React components from having to handle the API requests directly.
+Frontend
+The main task management page allows users to:
+Select an organization
+Select a project
+Create tasks
+Edit tasks
+Complete tasks
+Delete tasks
+Change task status
+Change priority
+Set due dates
+View tasks grouped by project
+Sort tasks by urgency
+The frontend communicates with the backend through a centralized API service.
 Error Handling
-The backend uses an AppError class for expected application errors.
-The API can return errors such as:
+The backend validates incoming requests and returns appropriate HTTP errors when something goes wrong.
+Common responses include:
 
 400 Bad Request
 401 Unauthorized
@@ -240,14 +167,6 @@ The API can return errors such as:
 409 Conflict
 500 Internal Server Error
 
-The frontend checks the response and displays the returned error when appropriate.
-API
-The backend runs locally on:
-http://localhost:5050
-
-The frontend uses:
-http://localhost:5050/api
-
 Running the Project
 Clone the repository:
 git clone <your-repository-url>
@@ -255,57 +174,34 @@ git clone <your-repository-url>
 Install dependencies:
 npm install
 
-If the frontend and backend have separate package.json files, install dependencies in both directories.
-Create the required environment variables for the backend, including the database connection and JWT secret.
+If the frontend and backend use separate package.json files, install dependencies in both directories.
+Create the required environment variables for the database connection and JWT secret.
 
-Start the backend using the project's development script:
+Start the backend:
 
 npm run dev
 
 Then start the frontend using its development script.
-Do not commit .env files, database passwords, JWT secrets, or other private credentials to GitHub.
-Project Structure
-The overall project is organized roughly like this:
-project/
-
-├── client/
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       ├── services/
-│       └── ...
-│
-├── server/
-│   └── src/
-│       ├── middleware/
-│       ├── repositories/
-│       ├── routes/
-│       ├── services/
-│       ├── validation/
-│       └── ...
-│
-└── README.md
-
+Do not commit .env files, passwords, JWT secrets, or other private credentials to GitHub.
 What I Learned
-This project helped me get more comfortable with building a full-stack application from the frontend all the way to the database.
+This project helped me become more comfortable building a full-stack application from the frontend to the backend and database.
 Some of the main things I worked with were:
 
 React with TypeScript
-Building REST APIs with Express
+Express and Node.js
+REST API development
 JWT authentication
-Role-based access control
-SQL and database operations
-Backend authorization
+SQL databases
+Role-based permissions
+Backend security
 Request validation
-Service and repository patterns
-Managing API state in React
-Handling errors between the frontend and backend
-Structuring a larger TypeScript project
-One of the biggest things I learned was that frontend restrictions aren't enough for security. The backend needs to verify the user, organization, and role for every protected operation.
+API error handling
+Managing API data in React
+Connecting frontend applications to backend services
+One of the biggest things I learned was how the frontend, backend, and database work together in a larger application.
 Future Plans
-Some features I may add as the project continues:
+Some features I may add in the future:
 Task comments
-Task activity/history
 Search and filtering
 Kanban board
 Notifications
@@ -319,7 +215,7 @@ Pagination
 Realtime updates
 About Me
 I'm a Computer Science student at Rutgers University pursuing a B.A. in Computer Science.
-I'm graduating in January 2027, one semester early, and I'm currently looking for software engineering and full-stack opportunities where I can continue building my skills and work on real-world software.
+I'm graduating in January 2027, one semester early, and I'm currently looking for software engineering and full-stack opportunities.
 
 Technologies
 TypeScript
@@ -331,7 +227,6 @@ Express
 SQL
 REST APIs
 JWT
-RBAC
 Git
 GitHub
 npm
