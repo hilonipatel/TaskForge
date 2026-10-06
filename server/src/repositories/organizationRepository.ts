@@ -61,3 +61,18 @@ export async function findOrganizationsForUser(userId: number) {
 
     return result.rows;
 }
+
+export async function deleteOrganization(
+    organizationId: number
+) {
+    const result = await pool.query(
+        `
+        DELETE FROM organizations
+        WHERE id = $1
+        RETURNING id
+        `,
+        [organizationId]
+    );
+
+    return result.rows[0];
+}

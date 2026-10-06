@@ -1,8 +1,8 @@
-import type { LoginResponse, RegisterResponse  } from "../types/auth";
+import type { LoginResponse, RegisterResponse, } from "../types/auth";
 
 const API_URL = "http://localhost:5050/api";
 
-export async function loginUser(email: string, password: string): Promise<LoginResponse>{
+export async function loginUser(email: string, password: string): Promise<LoginResponse> {
     const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
@@ -19,7 +19,7 @@ export async function loginUser(email: string, password: string): Promise<LoginR
     if (!response.ok) {
         throw new Error(data.error || "Login failed");
     }
-    
+
     return data;
 }
 
@@ -39,38 +39,122 @@ export async function registerUser(
             password,
         }),
     });
-    
+
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(
+            data.error || "Registration failed"
+        );
     }
-    
+
     return data;
 }
 
-export function getToken(){
+export function getToken() {
     return localStorage.getItem("token");
 }
 
-export async function createOrganization(name: string) {
+export function getCurrentUserId(): number | null {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/organizations`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-            name,
-        }),
-    });
+    if (!token) {
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(atob(token.split(".")[1]) );
+
+        const userId =
+            payload.userId ??
+            payload.id ??
+            payload.sub;
+
+        if (!userId) {
+            return null;
+        }
+
+        const numericId = Number(userId);
+
+        return Number.isNaN(numericId)
+            ? null
+            : numericId;
+    } catch (error) {
+        console.error(
+            "Failed to decode authentication token:",
+            error
+        );
+
+        return null;
+    }
+}
+
+export type UserRole =
+    | "OWNER"
+    | "ADMIN"
+    | "MEMBER"
+    | "VIEWER";
+
+export async function getUserOrganizationRole(
+    organizationId: number
+): Promise<UserRole> {
+    const currentUserId = getCurrentUserId();
+
+    if (!currentUserId) {
+        return "VIEWER";
+    }
+
+    const members =
+        await getOrganizationMembers(organizationId);
+
+    const currentMember = members.find(
+        (member: {
+            user_id?: number;
+            id?: number;
+        }) =>
+            Number(member.user_id ?? member.id) ===
+            currentUserId
+    );
+
+    const role = currentMember?.role?.toUpperCase();
+
+    if (
+        role === "OWNER" ||
+        role === "ADMIN" ||
+        role === "MEMBER" ||
+        role === "VIEWER"
+    ) {
+        return role;
+    }
+
+    return "VIEWER";
+}
+
+export async function createOrganization(name: string
+) {
+    const token = getToken();
+
+    const response = await fetch(
+        `${API_URL}/organizations`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                name,
+            }),
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to create organization");
+        throw new Error(
+            data.error ||
+                "Failed to create organization"
+        );
     }
 
     return data;
@@ -79,36 +163,79 @@ export async function createOrganization(name: string) {
 export async function getOrganizations() {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/organizations`, {
-        method: "GET",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const response = await fetch(
+        `${API_URL}/organizations`,
+        {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch organizations");
+        throw new Error(
+            data.error ||
+                "Failed to fetch organizations"
+        );
     }
 
     return data;
 }
 
+export async function deleteOrganization(
+    organizationId: number
+) {
+    const token = getToken();
+    
+    console.log(
+        "DELETE URL:",
+        `${API_URL}/organizations/${organizationId}`
+    );
+    console.log("Organization ID:", organizationId);
+    console.log("Token exists:", !!token);
+
+    const response = await fetch(
+        `${API_URL}/organizations/${organizationId}`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
+
+    if (!response.ok) {
+        const data = await response.json();
+
+        throw new Error(
+            data.error || "Failed to delete organization"
+        );
+    }
+}
+
 export async function getProjects() {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/projects`, {
-        method: "GET",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const response = await fetch(
+        `${API_URL}/projects`,
+        {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch projects");
+        throw new Error(
+            data.error ||
+                "Failed to fetch projects"
+        );
     }
 
     return data;
@@ -121,23 +248,29 @@ export async function createProject(
 ) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/projects`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-            organizationId,
-            name,
-            description,
-        }),
-    });
+    const response = await fetch(
+        `${API_URL}/projects`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                organizationId,
+                name,
+                description,
+            }),
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to create project");
+        throw new Error(
+            data.error ||
+                "Failed to create project"
+        );
     }
 
     return data;
@@ -152,42 +285,58 @@ export async function updateProject(
 ) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/projects/${projectId}`, {
-        method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(project),
-    });
+    const response = await fetch(
+        `${API_URL}/projects/${projectId}`,
+        {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(project),
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to update project");
+        throw new Error(
+            data.error ||
+                "Failed to update project"
+        );
     }
 
     return data;
 }
 
-export async function deleteProject(projectId: number) {
+export async function deleteProject(
+    projectId: number
+) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/projects/${projectId}`, {
-        method: "DELETE",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const response = await fetch(
+        `${API_URL}/projects/${projectId}`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
 
     if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to delete project");
+
+        throw new Error(
+            data.error ||
+                "Failed to delete project"
+        );
     }
 }
 
-
-export async function getOrganizationMembers(organizationId: number) {
+export async function getOrganizationMembers(
+    organizationId: number
+) {
     const token = getToken();
 
     const response = await fetch(
@@ -203,7 +352,10 @@ export async function getOrganizationMembers(organizationId: number) {
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch organization members");
+        throw new Error(
+            data.error ||
+                "Failed to fetch organization members"
+        );
     }
 
     return data;
@@ -234,7 +386,10 @@ export async function addOrganizationMember(
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to add organization member");
+        throw new Error(
+            data.error ||
+                "Failed to add organization member"
+        );
     }
 
     return data;
@@ -258,7 +413,11 @@ export async function removeOrganizationMember(
 
     if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to remove organization member");
+
+        throw new Error(
+            data.error ||
+                "Failed to remove organization member"
+        );
     }
 }
 
@@ -287,7 +446,8 @@ export async function updateOrganizationMemberRole(
 
     if (!response.ok) {
         throw new Error(
-            data.error || "Failed to update organization member role"
+            data.error ||
+                "Failed to update organization member role"
         );
     }
 
@@ -297,17 +457,23 @@ export async function updateOrganizationMemberRole(
 export async function getTasks() {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/tasks`, {
-        method: "GET",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const response = await fetch(
+        `${API_URL}/tasks`,
+        {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch tasks");
+        throw new Error(
+            data.error ||
+                "Failed to fetch tasks"
+        );
     }
 
     return data;
@@ -325,19 +491,25 @@ export async function createTask(task: {
 }) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/tasks`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(task),
-    });
+    const response = await fetch(
+        `${API_URL}/tasks`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(task),
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to create task");
+        throw new Error(
+            data.error ||
+                "Failed to create task"
+        );
     }
 
     return data;
@@ -356,36 +528,51 @@ export async function updateTask(
 ) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(task),
-    });
+    const response = await fetch(
+        `${API_URL}/tasks/${taskId}`,
+        {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(task),
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || "Failed to update task");
+        throw new Error(
+            data.error ||
+                "Failed to update task"
+        );
     }
 
     return data;
 }
 
-export async function deleteTask(taskId: number) {
+export async function deleteTask(
+    taskId: number
+) {
     const token = getToken();
 
-    const response = await fetch(`${API_URL}/tasks/${taskId}`, {
-        method: "DELETE",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const response = await fetch(
+        `${API_URL}/tasks/${taskId}`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
 
     if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to delete task");
+
+        throw new Error(
+            data.error ||
+                "Failed to delete task"
+        );
     }
 }

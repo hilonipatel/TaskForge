@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     CONSTRAINT tasks_project_organization_fkey
         FOREIGN KEY (project_id, organization_id)
         REFERENCES PROJECTS(id, organization_id)
-        on DELETE CASCADE
+        on DELETE CASCADE,
 
     CONSTRAINT tasks_assignee_organization_fkey
         FOREIGN KEY (assignee_id, organization_id)

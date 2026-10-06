@@ -1,4 +1,4 @@
-import { createOrganization, findOrganizationsForUser } from "../repositories/organizationRepository.js";
+import { createOrganization, findOrganizationsForUser, deleteOrganization } from "../repositories/organizationRepository.js";
 
 export async function createOrganizationForUser(
     userId: number,
@@ -9,4 +9,11 @@ export async function createOrganizationForUser(
 
 export async function getOrganizationsForUser(userId: number){
     return findOrganizationsForUser(userId);
+}
+
+export async function deleteOrganizationForUser(
+    organizationId: number,
+    userId: number
+) {
+    return deleteOrganization(organizationId);
 }

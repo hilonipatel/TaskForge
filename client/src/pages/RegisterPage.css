@@ -1,0 +1,8 @@
+/*
+ * Registration uses the same visual system
+ * as the Login page.
+ *
+ * This keeps authentication pages consistent.
+ */
+
+ @import "./LoginPage.css";

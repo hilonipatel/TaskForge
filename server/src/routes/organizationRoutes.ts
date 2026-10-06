@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
-import { createOrganizationForUser, getOrganizationsForUser } from "../services/organizationService.js";
+import { createOrganizationForUser, getOrganizationsForUser, deleteOrganizationForUser } from "../services/organizationService.js";
 import { createOrganizationSchema, addMemberSchema, updateMemberRoleSchema } from "../validation/organizationValidation.js";
 import { getOrganizationMembers, addMemberToOrganization, removeMemberFromOrganization, changeMemberRole } from "../services/organizationMemberService.js";
 import { AppError } from "../errors/AppError.js";
@@ -105,6 +105,37 @@ router.post("/:organizationId/members", authMiddleware, async (req, res) => {
         );
 
         return res.status(201).json(member);
+    } catch (error) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                error: error.message
+            });
+        }
+
+        console.error(error);
+
+        return res.status(500).json({
+            error: "Internal server error"
+        });
+    }
+});
+
+router.delete("/:organizationId", authMiddleware, async (req, res) => {
+    try {
+        const organizationId = Number(req.params.organizationId);
+
+        if (!Number.isInteger(organizationId) || organizationId <= 0) {
+            return res.status(400).json({
+                error: "Invalid organization ID"
+            });
+        }
+
+        await deleteOrganizationForUser(
+            organizationId,
+            req.userId
+        );
+
+        return res.status(204).send();
     } catch (error) {
         if (error instanceof AppError) {
             return res.status(error.statusCode).json({

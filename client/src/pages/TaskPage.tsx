@@ -1,8 +1,29 @@
+import { useEffect, useState } from "react";
+import {
+    getTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    getOrganizations,
+    getProjects,
+} from "../services/api";
+import type { Task } from "../types/task";
+import type { Project } from "../types/project";
+import { useNavigate } from "react-router-dom";
+import PageLayout from "../components/PageLayout";
+import "./TaskPage.css";
+
 const priorityRank: Record<string, number> = {
     HIGH: 1,
     MEDIUM: 2,
     LOW: 3,
 };
+
+type UserRole =
+    | "OWNER"
+    | "ADMIN"
+    | "MEMBER"
+    | "VIEWER";
 
 function sortTasksByUrgency(tasks: Task[]) {
     return [...tasks].sort((a, b) => {
@@ -43,31 +64,60 @@ function sortTasksByUrgency(tasks: Task[]) {
     });
 }
 
-import { useEffect, useState } from "react";
-import { getTasks, createTask, updateTask, deleteTask, getOrganizations, getProjects } from "../services/api";
-import type { Task } from "../types/task";
-import type { Project } from "../types/project"
-import { useNavigate } from "react-router-dom";
-
-function TasksPage() {
+function TaskPage() {
     const navigate = useNavigate();
+
+    /* =========================
+       ROLE & PERMISSIONS
+       ========================= */
+
+    const storedRole =
+        localStorage.getItem("role")?.toUpperCase();
+
+    const role: UserRole =
+        storedRole === "OWNER" ||
+        storedRole === "ADMIN" ||
+        storedRole === "MEMBER" ||
+        storedRole === "VIEWER"
+            ? storedRole
+            : "VIEWER";
+
+    // OWNER, ADMIN and MEMBER
+    const canCreateTask =
+        role === "OWNER" ||
+        role === "ADMIN" ||
+        role === "MEMBER";
+
+    // OWNER, ADMIN and MEMBER
+    const canUpdateTask =
+        role === "OWNER" ||
+        role === "ADMIN" ||
+        role === "MEMBER";
+
+    // OWNER and ADMIN only
+    const canDeleteTask =
+        role === "OWNER" ||
+        role === "ADMIN";
+
+    // Anyone who can create, update or delete
+    // can see task management controls.
+    const canManageTasks =
+        canCreateTask ||
+        canUpdateTask ||
+        canDeleteTask;
+
+    /* =========================
+       STATE
+       ========================= */
 
     const [organizations, setOrganizations] = useState<
         { id: number; name: string }[]
     >([]);
 
     const [projects, setProjects] = useState<Project[]>([]);
-
-    const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-    const [editTitle, setEditTitle] = useState("");
-    const [editDescription, setEditDescription] = useState("");
-    const [editStatus, setEditStatus] = useState("TODO");
-    const [editPriority, setEditPriority] = useState("MEDIUM");
-    const [editDueDate, setEditDueDate] = useState("");
-
     const [tasks, setTasks] = useState<Task[]>([]);
     const [error, setError] = useState("");
-    
+
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [organizationId, setOrganizationId] = useState("");
@@ -75,95 +125,120 @@ function TasksPage() {
     const [priority, setPriority] = useState("MEDIUM");
     const [status, setStatus] = useState("TODO");
     const [dueDate, setDueDate] = useState("");
-    
+
+    const [editingTaskId, setEditingTaskId] =
+        useState<number | null>(null);
+
+    const [editTitle, setEditTitle] = useState("");
+    const [editDescription, setEditDescription] =
+        useState("");
+
+    const [editStatus, setEditStatus] =
+        useState("TODO");
+
+    const [editPriority, setEditPriority] =
+        useState("MEDIUM");
+
+    const [editDueDate, setEditDueDate] =
+        useState("");
+
+    /* =========================
+       FILTERED DATA
+       ========================= */
+
     const filteredProjects = projects.filter(
-        (project) => project.organization_id === Number(organizationId)
+        (project) =>
+            project.organization_id ===
+            Number(organizationId)
     );
 
-    const tasksByProject = projects.reduce<Record<number, Task[]>>(
-        (groups, project) => {
-            groups[project.id] = tasks.filter(
-                (task) => task.project_id === project.id
-            );
-    
-            return groups;
-        },
-        {}
-    );
-    
+    const tasksByProject = projects.reduce<
+        Record<number, Task[]>
+    >((groups, project) => {
+        groups[project.id] = tasks.filter(
+            (task) =>
+                task.project_id === project.id
+        );
+
+        return groups;
+    }, {});
+
+    /* =========================
+       LOAD DATA
+       ========================= */
+
     useEffect(() => {
-        const loadTasks = async () => {
+        const loadData = async () => {
             try {
-                const data = await getTasks();
-                setTasks(data);
+                const [
+                    taskData,
+                    organizationData,
+                    projectData,
+                ] = await Promise.all([
+                    getTasks(),
+                    getOrganizations(),
+                    getProjects(),
+                ]);
+
+                setTasks(taskData);
+                setOrganizations(organizationData);
+                setProjects(projectData);
             } catch (error) {
-                console.error("Failed to load tasks:", error);
-    
+                console.error(
+                    "Failed to load task data:",
+                    error
+                );
+
                 if (error instanceof Error) {
                     setError(error.message);
                 } else {
-                    setError("Failed to load tasks");
-                }
-            }
-        };
-    
-        const loadOrganizations = async () => {
-            try {
-                const data = await getOrganizations();
-                setOrganizations(data);
-            } catch (error) {
-                console.error("Failed to load organizations:", error);
-    
-                if (error instanceof Error) {
-                    setError(error.message);
-                } else {
-                    setError("Failed to load organizations");
+                    setError(
+                        "Failed to load task data"
+                    );
                 }
             }
         };
 
-        const loadProjects = async () => {
-            try {
-                const data = await getProjects();
-                setProjects(data);
-            } catch (error) {
-                console.error("Failed to load projects:", error);
-        
-                if (error instanceof Error) {
-                    setError(error.message);
-                } else {
-                    setError("Failed to load projects");
-                }
-            }
-        };
-        
-    
-        loadTasks();
-        loadOrganizations();
-        loadProjects();
+        loadData();
     }, []);
-    
 
-    const handleCreateTask = async (event: React.FormEvent) => {
+    /* =========================
+       CREATE TASK
+       ========================= */
+
+    const handleCreateTask = async (
+        event: React.FormEvent
+    ) => {
         event.preventDefault();
+
+        if (!canCreateTask) {
+            setError(
+                "You do not have permission to create tasks."
+            );
+            return;
+        }
+
         setError("");
-    
+
         try {
             const task = await createTask({
-                organizationId: Number(organizationId),
+                organizationId: Number(
+                    organizationId
+                ),
                 projectId: Number(projectId),
                 title,
-                description: description || null,
+                description:
+                    description || null,
                 status,
                 priority,
                 dueDate: dueDate || null,
             });
-    
+
             setTasks((currentTasks) => [
                 ...currentTasks,
                 task,
             ]);
-    
+
             setTitle("");
             setDescription("");
             setOrganizationId("");
@@ -172,426 +247,964 @@ function TasksPage() {
             setStatus("TODO");
             setDueDate("");
         } catch (error) {
-            console.error("Failed to create task:", error);
-    
+            console.error(
+                "Failed to create task:",
+                error
+            );
+
             if (error instanceof Error) {
                 setError(error.message);
             } else {
-                setError("Failed to create task");
+                setError(
+                    "Failed to create task"
+                );
             }
         }
     };
 
-    const handleUpdateTask = async (taskId: number) => {
+    /* =========================
+       UPDATE TASK
+       ========================= */
+
+    const handleUpdateTask = async (
+        taskId: number
+    ) => {
+        if (!canUpdateTask) {
+            setError(
+                "You do not have permission to update tasks."
+            );
+            return;
+        }
+
         setError("");
-    
+
         try {
-            const updatedTask = await updateTask(taskId, {
-                title: editTitle,
-                description: editDescription || null,
-                status: editStatus,
-                priority: editPriority,
-                dueDate: editDueDate || null,
-            });
-    
+            const updatedTask =
+                await updateTask(taskId, {
+                    title: editTitle,
+                    description:
+                        editDescription || null,
+                    status: editStatus,
+                    priority: editPriority,
+                    dueDate:
+                        editDueDate || null,
+                });
+
             setTasks((currentTasks) =>
                 currentTasks.map((task) =>
-                    task.id === taskId ? updatedTask : task
+                    task.id === taskId
+                        ? updatedTask
+                        : task
                 )
             );
-    
+
             setEditingTaskId(null);
         } catch (error) {
-            console.error("Failed to update task:", error);
-    
+            console.error(
+                "Failed to update task:",
+                error
+            );
+
             if (error instanceof Error) {
                 setError(error.message);
             } else {
-                setError("Failed to update task");
+                setError(
+                    "Failed to update task"
+                );
             }
         }
     };
 
-    const handleCompleteTask = async (task: Task) => {
+    /* =========================
+       COMPLETE TASK
+       ========================= */
+
+    const handleCompleteTask = async (
+        task: Task
+    ) => {
+        if (!canUpdateTask) {
+            setError(
+                "You do not have permission to update tasks."
+            );
+            return;
+        }
+
         setError("");
-    
+
         try {
-            const updatedTask = await updateTask(task.id, {
-                title: task.title,
-                description: task.description,
-                status: "DONE",
-                priority: task.priority,
-                dueDate: task.due_date
-                    ? task.due_date.split("T")[0]
-                    :null,
-            });
-    
+            const updatedTask =
+                await updateTask(task.id, {
+                    title: task.title,
+                    description: task.description,
+                    status: "DONE",
+                    priority: task.priority,
+                    dueDate: task.due_date
+                        ? task.due_date.split("T")[0]
+                        : null,
+                });
+
             setTasks((currentTasks) =>
-                currentTasks.map((currentTask) =>
-                    currentTask.id === task.id ? updatedTask : currentTask
+                currentTasks.map(
+                    (currentTask) =>
+                        currentTask.id === task.id
+                            ? updatedTask
+                            : currentTask
                 )
             );
         } catch (error) {
-            console.error("Failed to complete task:", error);
-    
+            console.error(
+                "Failed to complete task:",
+                error
+            );
+
             if (error instanceof Error) {
                 setError(error.message);
             } else {
-                setError("Failed to complete task");
+                setError(
+                    "Failed to complete task"
+                );
             }
         }
     };
-    
-    
-    const handleDeleteTask = async (taskId: number) => {
+
+    /* =========================
+       DELETE TASK
+       ========================= */
+
+    const handleDeleteTask = async (
+        taskId: number
+    ) => {
+        if (!canDeleteTask) {
+            setError(
+                "You do not have permission to delete tasks."
+            );
+            return;
+        }
+
         setError("");
-    
+
         try {
             await deleteTask(taskId);
-    
+
             setTasks((currentTasks) =>
-                currentTasks.filter((task) => task.id !== taskId)
+                currentTasks.filter(
+                    (task) =>
+                        task.id !== taskId
+                )
             );
         } catch (error) {
-            console.error("Failed to delete task:", error);
-    
+            console.error(
+                "Failed to delete task:",
+                error
+            );
+
             if (error instanceof Error) {
                 setError(error.message);
             } else {
-                setError("Failed to delete task");
+                setError(
+                    "Failed to delete task"
+                );
             }
         }
     };
-    
-    function formatDueDate(dueDate: string | null) {
+
+    /* =========================
+       HELPERS
+       ========================= */
+
+    function formatDueDate(
+        dueDate: string | null
+    ) {
         if (!dueDate) {
             return "No due date";
         }
-    
-        return new Date(dueDate).toLocaleDateString();
+
+        return new Date(
+            dueDate
+        ).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
     }
-    
 
     return (
-        <div>
-            <h1>TaskForge</h1>
-            <h2>Tasks</h2>
+        <PageLayout title="Tasks">
+            <div className="tasks-page">
 
-            <button
-                type="button"
-                onClick={() => navigate("/dashboard")}
-            >
-                Back to Dashboard
-            </button>
+                {/* =========================
+                    HEADER
+                    ========================= */}
 
-            <button
-                type="button"
-                onClick={() => navigate("/projects")}
-            >
-                Back to Projects
-            </button>
+                <div className="tasks-header">
+                    <div>
+                        <p className="page-eyebrow">
+                            Workspace
+                        </p>
 
-            <h3>Create Task</h3>
+                        <h2>Tasks</h2>
 
-            <form onSubmit={handleCreateTask}>
-                <div>
-                    <label htmlFor="task-title">
-                        Title
-                    </label>
+                        <p className="page-subtitle">
+                            Create, organize, and
+                            track your project
+                            tasks.
+                        </p>
+                    </div>
 
-                    <input
-                        id="task-title"
-                        type="text"
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                    />
+                    <div className="tasks-header-actions">
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() =>
+                                navigate(
+                                    "/dashboard"
+                                )
+                            }
+                        >
+                            Back to Dashboard
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                navigate(
+                                    "/projects"
+                                )
+                            }
+                        >
+                            Back to Projects
+                        </button>
+                    </div>
                 </div>
 
-                <div>
-                    <label htmlFor="task-description">
-                        Description
-                    </label>
+                {/* =========================
+                    ROLE BADGE
+                    ========================= */}
 
-                    <textarea
-                        id="task-description"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                    />
+                <div className="task-role-badge">
+                    <span>Role</span>
+                    <strong>{role}</strong>
                 </div>
 
-                <div>
-                    <label htmlFor="task-organization">
-                        Organization
-                    </label>
+                {/* =========================
+                    ERROR
+                    ========================= */}
 
-                    <select
-                        id="task-organization"
-                        value={organizationId}
-                        onChange={(event) => {
-                            setOrganizationId(event.target.value);
-                            setProjectId("");
-                        }} 
-                    >
-                        <option value="">Select an organization</option>
+                {error && (
+                    <div className="error-message">
+                        {error}
+                    </div>
+                )}
 
-                        {organizations.map((organization) => (
-                            <option key={organization.id} value={organization.id}>
-                                {organization.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                {/* =========================
+                    CREATE TASK
+                    OWNER / ADMIN / MEMBER
+                    ========================= */}
 
-                <div>
-                    <label htmlFor="task-project">
-                        Project
-                    </label>
+                {canCreateTask && (
+                    <div className="task-form">
+                        <div className="section-heading">
+                            <div>
+                                <h3>
+                                    Create Task
+                                </h3>
 
-                    <select
-                        id="task-project"
-                        value={projectId}
-                        onChange={(event) => setProjectId(event.target.value)}
-                    >
-                        <option value="">Select a project</option>
-
-                        {filteredProjects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                                {project.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="task-status">
-                        Status
-                    </label>
-
-                    <select
-                        id="task-status"
-                        value={status}
-                        onChange={(event) => setStatus(event.target.value)}
-                    >
-                        <option value="TODO">To Do</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="DONE">Done</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="task-priority">
-                        Priority
-                    </label>
-
-                    <select
-                        id="task-priority"
-                        value={priority}
-                        onChange={(event) => setPriority(event.target.value)}
-                    >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="task-due-date">
-                        Due Date
-                    </label>
-
-                    <input
-                        id="task-due-date"
-                        type="date"
-                        value={dueDate}
-                        onChange={(event) => setDueDate(event.target.value)}
-                    />
-                </div>
-
-                <button type="submit">
-                    Create Task
-                </button>
-            </form>
-
-            {error && <p>{error}</p>}
-
-
-            {tasks.length === 0 ? (
-                <p>No tasks found.</p>
-            ) : (
-                <div>
-                    {projects.map((project) => {
-                        const projectTasks = sortTasksByUrgency(
-                            tasksByProject[project.id] ?? []
-                        );
-                        
-
-                        if (projectTasks.length === 0) {
-                            return null;
-                        }
-                         
-                        return (
-                            <div key={project.id}>
-                                <h3>{project.name}</h3>
-
-                                <ul>
-                                    {projectTasks.map((task) => (
-                                        <li key={task.id}>
-                                            <strong>{task.title}</strong>
-                                            {" — "}
-                                            {task.status}
-                                            {" — "}
-                                            {task.priority}
-                                            {"-"}
-                                            Due: {formatDueDate(task.due_date)}
-
-                                            {task.status !== "DONE" && (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleCompleteTask(task)}
-                                                    >
-                                                        Mark Done
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setEditingTaskId(task.id);
-                                                            setEditTitle(task.title);
-                                                            setEditDescription(task.description ?? "");
-                                                            setEditStatus(task.status);
-                                                            setEditPriority(task.priority);
-                                                            setEditDueDate(task.due_date ? task.due_date.split("T")[0] : "");
-                                                        }}
-                                                    >
-                                                        Edit
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDeleteTask(task.id)}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </>
-                                            )}
-
-                                            {editingTaskId === task.id && (
-                                                <div>
-                                                    <h4>Edit Task</h4>
-
-                                                    <div>
-                                                        <label htmlFor={`edit-title-${task.id}`}>
-                                                            Title
-                                                        </label>
-
-                                                        <input
-                                                            id={`edit-title-${task.id}`}
-                                                            type="text"
-                                                            value={editTitle}
-                                                            onChange={(event) =>
-                                                                setEditTitle(event.target.value)
-                                                            }
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label htmlFor={`edit-description-${task.id}`}>
-                                                            Description
-                                                        </label>
-
-                                                        <textarea
-                                                            id={`edit-description-${task.id}`}
-                                                            value={editDescription}
-                                                            onChange={(event) =>
-                                                                setEditDescription(event.target.value)
-                                                            }
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label htmlFor={`edit-status-${task.id}`}>
-                                                            Status
-                                                        </label>
-
-                                                        <select
-                                                            id={`edit-status-${task.id}`}
-                                                            value={editStatus}
-                                                            onChange={(event) =>
-                                                                setEditStatus(event.target.value)
-                                                            }
-                                                        >
-                                                            <option value="TODO">To Do</option>
-                                                            <option value="IN_PROGRESS">
-                                                                In Progress
-                                                            </option>
-                                                            <option value="DONE">Done</option>
-                                                        </select>
-                                                    </div>
-
-                                                    <div>
-                                                        <label htmlFor={`edit-priority-${task.id}`}>
-                                                            Priority
-                                                        </label>
-
-                                                        <select
-                                                            id={`edit-priority-${task.id}`}
-                                                            value={editPriority}
-                                                            onChange={(event) =>
-                                                                setEditPriority(event.target.value)
-                                                            }
-                                                        >
-                                                            <option value="LOW">Low</option>
-                                                            <option value="MEDIUM">Medium</option>
-                                                            <option value="HIGH">High</option>
-                                                        </select>
-                                                    </div>
-
-                                                    <div>
-                                                        <label htmlFor={`edit-due-date-${task.id}`}>
-                                                            Due Date
-                                                        </label>
-
-                                                        <input
-                                                            id={`edit-due-date-${task.id}`}
-                                                            type="date"
-                                                            value={editDueDate}
-                                                            onChange={(event) =>
-                                                                setEditDueDate(event.target.value)
-                                                            }
-                                                        />
-                                                    </div>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleUpdateTask(task.id)}
-                                                    >
-                                                        Save
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditingTaskId(null)}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
+                                <p>
+                                    Add a new task
+                                    and assign
+                                    it to a
+                                    project.
+                                </p>
                             </div>
-                        );
-                    })}
+                        </div>
+
+                        <form
+                            onSubmit={
+                                handleCreateTask
+                            }
+                        >
+                            <div className="task-form-grid">
+                                <div className="form-field">
+                                    <label htmlFor="task-title">
+                                        Title
+                                    </label>
+
+                                    <input
+                                        id="task-title"
+                                        type="text"
+                                        value={title}
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setTitle(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                        placeholder="Enter task title"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-field">
+                                    <label htmlFor="task-organization">
+                                        Organization
+                                    </label>
+
+                                    <select
+                                        id="task-organization"
+                                        value={
+                                            organizationId
+                                        }
+                                        onChange={(
+                                            event
+                                        ) => {
+                                            setOrganizationId(
+                                                event
+                                                    .target
+                                                    .value
+                                            );
+
+                                            setProjectId(
+                                                ""
+                                            );
+                                        }}
+                                        required
+                                    >
+                                        <option value="">
+                                            Select an
+                                            organization
+                                        </option>
+
+                                        {organizations.map(
+                                            (
+                                                organization
+                                            ) => (
+                                                <option
+                                                    key={
+                                                        organization.id
+                                                    }
+                                                    value={
+                                                        organization.id
+                                                    }
+                                                >
+                                                    {
+                                                        organization.name
+                                                    }
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="form-field">
+                                <label htmlFor="task-description">
+                                    Description
+                                </label>
+
+                                <textarea
+                                    id="task-description"
+                                    value={
+                                        description
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setDescription(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    placeholder="Describe the task"
+                                />
+                            </div>
+
+                            <div className="task-form-grid">
+                                <div className="form-field">
+                                    <label htmlFor="task-project">
+                                        Project
+                                    </label>
+
+                                    <select
+                                        id="task-project"
+                                        value={
+                                            projectId
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setProjectId(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                        required
+                                        disabled={
+                                            !organizationId
+                                        }
+                                    >
+                                        <option value="">
+                                            Select a
+                                            project
+                                        </option>
+
+                                        {filteredProjects.map(
+                                            (
+                                                project
+                                            ) => (
+                                                <option
+                                                    key={
+                                                        project.id
+                                                    }
+                                                    value={
+                                                        project.id
+                                                    }
+                                                >
+                                                    {
+                                                        project.name
+                                                    }
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                </div>
+
+                                <div className="form-field">
+                                    <label htmlFor="task-status">
+                                        Status
+                                    </label>
+
+                                    <select
+                                        id="task-status"
+                                        value={
+                                            status
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setStatus(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                    >
+                                        <option value="TODO">
+                                            To Do
+                                        </option>
+
+                                        <option value="IN_PROGRESS">
+                                            In Progress
+                                        </option>
+
+                                        <option value="DONE">
+                                            Done
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div className="form-field">
+                                    <label htmlFor="task-priority">
+                                        Priority
+                                    </label>
+
+                                    <select
+                                        id="task-priority"
+                                        value={
+                                            priority
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setPriority(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                    >
+                                        <option value="LOW">
+                                            Low
+                                        </option>
+
+                                        <option value="MEDIUM">
+                                            Medium
+                                        </option>
+
+                                        <option value="HIGH">
+                                            High
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div className="form-field">
+                                    <label htmlFor="task-due-date">
+                                        Due Date
+                                    </label>
+
+                                    <input
+                                        id="task-due-date"
+                                        type="date"
+                                        value={
+                                            dueDate
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setDueDate(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit">
+                                Create Task
+                            </button>
+                        </form>
+                    </div>
+                )}
+
+                {/* =========================
+                    TASK LIST
+                    ========================= */}
+
+                <div className="tasks-section">
+                    <div className="tasks-section-heading">
+                        <div>
+                            <h3>Tasks</h3>
+
+                            <p>
+                                Tasks are grouped
+                                by project and
+                                sorted by
+                                urgency.
+                            </p>
+                        </div>
+
+                        <span className="task-count">
+                            {tasks.length}
+                        </span>
+                    </div>
+
+                    {tasks.length === 0 ? (
+                        <div className="empty-state">
+                            <h4>
+                                No tasks found
+                            </h4>
+
+                            <p>
+                                {canCreateTask
+                                    ? "Create your first task to get started."
+                                    : "There are currently no tasks available."}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="task-groups">
+                            {projects.map(
+                                (project) => {
+                                    const projectTasks =
+                                        sortTasksByUrgency(
+                                            tasksByProject[
+                                                project.id
+                                            ] ?? []
+                                        );
+
+                                    if (
+                                        projectTasks.length ===
+                                        0
+                                    ) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <div
+                                            key={
+                                                project.id
+                                            }
+                                            className="task-project-group"
+                                        >
+                                            <div className="task-project-heading">
+                                                <div className="task-project-icon">
+                                                    {project.name
+                                                        .charAt(
+                                                            0
+                                                        )
+                                                        .toUpperCase()}
+                                                </div>
+
+                                                <div className="task-project-title">
+                                                    <h3>
+                                                        {
+                                                            project.name
+                                                        }
+                                                    </h3>
+
+                                                    <span>
+                                                        {
+                                                            projectTasks.length
+                                                        }{" "}
+                                                        {projectTasks.length ===
+                                                        1
+                                                            ? "task"
+                                                            : "tasks"}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="task-list">
+                                                {projectTasks.map(
+                                                    (
+                                                        task
+                                                    ) => (
+                                                        <div
+                                                            key={
+                                                                task.id
+                                                            }
+                                                            className={`task-card ${
+                                                                task.status ===
+                                                                "DONE"
+                                                                    ? "completed"
+                                                                    : ""
+                                                            }`}
+                                                        >
+                                                            <div className="task-card-header">
+                                                                <h4>
+                                                                    {
+                                                                        task.title
+                                                                    }
+                                                                </h4>
+
+                                                                <div className="task-badges">
+                                                                    <span
+                                                                        className={`status-badge status-${task.status.toLowerCase()}`}
+                                                                    >
+                                                                        {task.status ===
+                                                                        "TODO"
+                                                                            ? "To Do"
+                                                                            : task.status ===
+                                                                              "IN_PROGRESS"
+                                                                            ? "In Progress"
+                                                                            : "Done"}
+                                                                    </span>
+
+                                                                    <span
+                                                                        className={`priority-badge priority-${task.priority.toLowerCase()}`}
+                                                                    >
+                                                                        {
+                                                                            task.priority
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            <p className="task-description">
+                                                                {task.description ||
+                                                                    "No description"}
+                                                            </p>
+
+                                                            <p className="task-due-date">
+                                                                Due
+                                                                Date:{" "}
+                                                                {formatDueDate(
+                                                                    task.due_date
+                                                                )}
+                                                            </p>
+
+                                                            {/* =========================
+                                                                TASK ACTIONS
+                                                                ========================= */}
+
+                                                            {task.status !==
+                                                                "DONE" &&
+                                                                canManageTasks && (
+                                                                    <div className="task-actions">
+
+                                                                        {/* OWNER / ADMIN / MEMBER */}
+
+                                                                        {canUpdateTask && (
+                                                                            <>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() =>
+                                                                                        handleCompleteTask(
+                                                                                            task
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    Mark
+                                                                                    Done
+                                                                                </button>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="secondary"
+                                                                                    onClick={() => {
+                                                                                        setEditingTaskId(
+                                                                                            task.id
+                                                                                        );
+
+                                                                                        setEditTitle(
+                                                                                            task.title
+                                                                                        );
+
+                                                                                        setEditDescription(
+                                                                                            task.description ??
+                                                                                                ""
+                                                                                        );
+
+                                                                                        setEditStatus(
+                                                                                            task.status
+                                                                                        );
+
+                                                                                        setEditPriority(
+                                                                                            task.priority
+                                                                                        );
+
+                                                                                        setEditDueDate(
+                                                                                            task.due_date
+                                                                                                ? task.due_date.split(
+                                                                                                      "T"
+                                                                                                  )[0]
+                                                                                                : ""
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+
+                                                                        {/* OWNER / ADMIN ONLY */}
+
+                                                                        {canDeleteTask && (
+                                                                            <button
+                                                                                type="button"
+                                                                                className="danger"
+                                                                                onClick={() =>
+                                                                                    handleDeleteTask(
+                                                                                        task.id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                Delete
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                            {/* =========================
+                                                                EDIT TASK
+                                                                OWNER / ADMIN / MEMBER
+                                                                ========================= */}
+
+                                                            {editingTaskId ===
+                                                                task.id &&
+                                                                canUpdateTask && (
+                                                                    <div className="edit-task">
+                                                                        <h5>
+                                                                            Edit
+                                                                            Task
+                                                                        </h5>
+
+                                                                        <div className="form-field">
+                                                                            <label
+                                                                                htmlFor={`edit-title-${task.id}`}
+                                                                            >
+                                                                                Title
+                                                                            </label>
+
+                                                                            <input
+                                                                                id={`edit-title-${task.id}`}
+                                                                                type="text"
+                                                                                value={
+                                                                                    editTitle
+                                                                                }
+                                                                                onChange={(
+                                                                                    event
+                                                                                ) =>
+                                                                                    setEditTitle(
+                                                                                        event
+                                                                                            .target
+                                                                                            .value
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="form-field">
+                                                                            <label
+                                                                                htmlFor={`edit-description-${task.id}`}
+                                                                            >
+                                                                                Description
+                                                                            </label>
+
+                                                                            <textarea
+                                                                                id={`edit-description-${task.id}`}
+                                                                                value={
+                                                                                    editDescription
+                                                                                }
+                                                                                onChange={(
+                                                                                    event
+                                                                                ) =>
+                                                                                    setEditDescription(
+                                                                                        event
+                                                                                            .target
+                                                                                            .value
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="task-form-grid">
+                                                                            <div className="form-field">
+                                                                                <label
+                                                                                    htmlFor={`edit-status-${task.id}`}
+                                                                                >
+                                                                                    Status
+                                                                                </label>
+
+                                                                                <select
+                                                                                    id={`edit-status-${task.id}`}
+                                                                                    value={
+                                                                                        editStatus
+                                                                                    }
+                                                                                    onChange={(
+                                                                                        event
+                                                                                    ) =>
+                                                                                        setEditStatus(
+                                                                                            event
+                                                                                                .target
+                                                                                                .value
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    <option value="TODO">
+                                                                                        To
+                                                                                        Do
+                                                                                    </option>
+
+                                                                                    <option value="IN_PROGRESS">
+                                                                                        In
+                                                                                        Progress
+                                                                                    </option>
+
+                                                                                    <option value="DONE">
+                                                                                        Done
+                                                                                    </option>
+                                                                                </select>
+                                                                            </div>
+
+                                                                            <div className="form-field">
+                                                                                <label
+                                                                                    htmlFor={`edit-priority-${task.id}`}
+                                                                                >
+                                                                                    Priority
+                                                                                </label>
+
+                                                                                <select
+                                                                                    id={`edit-priority-${task.id}`}
+                                                                                    value={
+                                                                                        editPriority
+                                                                                    }
+                                                                                    onChange={(
+                                                                                        event
+                                                                                    ) =>
+                                                                                        setEditPriority(
+                                                                                            event
+                                                                                                .target
+                                                                                                .value
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    <option value="LOW">
+                                                                                        Low
+                                                                                    </option>
+
+                                                                                    <option value="MEDIUM">
+                                                                                        Medium
+                                                                                    </option>
+
+                                                                                    <option value="HIGH">
+                                                                                        High
+                                                                                    </option>
+                                                                                </select>
+                                                                            </div>
+
+                                                                            <div className="form-field">
+                                                                                <label
+                                                                                    htmlFor={`edit-due-date-${task.id}`}
+                                                                                >
+                                                                                    Due
+                                                                                    Date
+                                                                                </label>
+
+                                                                                <input
+                                                                                    id={`edit-due-date-${task.id}`}
+                                                                                    type="date"
+                                                                                    value={
+                                                                                        editDueDate
+                                                                                    }
+                                                                                    onChange={(
+                                                                                        event
+                                                                                    ) =>
+                                                                                        setEditDueDate(
+                                                                                            event
+                                                                                                .target
+                                                                                                .value
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="task-actions">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() =>
+                                                                                    handleUpdateTask(
+                                                                                        task.id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                Save
+                                                                            </button>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                className="secondary"
+                                                                                onClick={() =>
+                                                                                    setEditingTaskId(
+                                                                                        null
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                            )}
+                        </div>
+                    )}
                 </div>
-            )}
-
-        </div>
+            </div>
+        </PageLayout>
     );
-
-    
 }
 
-
-
-export default TasksPage;
+export default TaskPage;

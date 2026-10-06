@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+} from "react";
 import type { User } from "../types/auth";
 import { getToken } from "./api";
 
@@ -9,22 +16,30 @@ type AuthContextType = {
     logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext =
+    createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode}) {
+export function AuthProvider({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    const token = getToken();
+
     const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
+
+    const [loading, setLoading] = useState(
+        () => Boolean(token)
+    );
 
     const logout = () => {
         localStorage.removeItem("token");
         setUser(null);
+        setLoading(false);
     };
 
     useEffect(() => {
-        const token = getToken();
-        
         if (!token) {
-            setLoading(false);
             return;
         }
 
@@ -44,23 +59,40 @@ export function AuthProvider({ children }: { children: React.ReactNode}) {
             .then((data) => {
                 setUser(data);
             })
+            .catch((error) => {
+                console.error(
+                    "Failed to restore authentication:",
+                    error
+                );
+
+                setUser(null);
+            })
             .finally(() => {
                 setLoading(false);
             });
-    }, []);
+    }, [token]);
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, logout}}>
+        <AuthContext.Provider
+            value={{
+                user,
+                setUser,
+                loading,
+                logout,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );
 }
 
-export function useAuth(){
+export function useAuth() {
     const auth = useContext(AuthContext);
 
     if (!auth) {
-        throw new Error("useAuth must be used inside AuthProvider");
+        throw new Error(
+            "useAuth must be used inside AuthProvider"
+        );
     }
 
     return auth;
