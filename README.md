@@ -249,8 +249,6 @@ http://localhost:5050/api
 
 Start the frontend using the appropriate development script defined in the frontend `package.json`.
 
-> Update these instructions to match your repository's actual folder structure, environment variables, and npm scripts before publishing.
-
 ## Testing and Verification
 
 Important areas to verify during development include:
