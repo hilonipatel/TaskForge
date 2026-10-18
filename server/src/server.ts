@@ -1,10 +1,9 @@
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { pool } from "./db.js";
 import authRoutes from "./routes/authRoutes.js";
-import taskRoutes from "./routes/taskRoutes.js";
+import taskRoutes from "./routes/taskRoutes.js"
 import organizationRoutes from "./routes/organizationRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 
@@ -27,26 +26,26 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.get("/api/db-test", async (_req, res) => {
-  try {
-    const result = await pool.query("SELECT NOW()");
+const PORT = process.env.PORT || 5000;
 
-    res.json({
-      status: "ok",
-      databaseTime: result.rows[0].now,
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      status: "error",
-      message: "Database connection failed",
-    });
-  }
-});
-
-const PORT = Number(process.env.PORT) || 5050;
-
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`TaskForge API running on port ${PORT}`);
 });
+
+app.get("/api/db-test", async (_req, res) => {
+    try {
+      const result = await pool.query("SELECT NOW()");
+  
+      res.json({
+        status: "ok",
+        databaseTime: result.rows[0].now,
+      });
+    } catch (error) {
+      console.error(error);
+  
+      res.status(500).json({
+        status: "error",
+        message: "Database connection failed",
+      });
+    }
+  });
