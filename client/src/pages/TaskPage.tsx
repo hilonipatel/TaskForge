@@ -6,10 +6,16 @@ import {
     deleteTask,
     getOrganizations,
     getProjects,
+    getOrganizationMembers,
+    getCurrentUserId,
 } from "../services/api";
 import type { Task } from "../types/task";
 import type { Project } from "../types/project";
-import { useNavigate } from "react-router-dom";
+import type { OrganizationMember } from "../types/organization";
+import { 
+    useNavigate,
+    useSearchParams,
+} from "react-router-dom";
 import PageLayout from "../components/PageLayout";
 import "./TaskPage.css";
 
@@ -66,49 +72,63 @@ function sortTasksByUrgency(tasks: Task[]) {
 
 function TaskPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    /* =========================
-       ROLE & PERMISSIONS
-       ========================= */
+    const initialProjectId = searchParams.get("projectId");
 
-    const storedRole =
-        localStorage.getItem("role")?.toUpperCase();
+    const selectedProjectId = searchParams.get("projectId");
 
-    const role: UserRole =
-        storedRole === "OWNER" ||
-        storedRole === "ADMIN" ||
-        storedRole === "MEMBER" ||
-        storedRole === "VIEWER"
-            ? storedRole
-            : "VIEWER";
+    type Organization = {
+        id: number;
+        name: string;
+    }
 
-    // OWNER, ADMIN and MEMBER
-    const canCreateTask =
-        role === "OWNER" ||
-        role === "ADMIN" ||
-        role === "MEMBER";
+    type RoleMap = Record<number, UserRole>;
 
-    // OWNER, ADMIN and MEMBER
-    const canUpdateTask =
-        role === "OWNER" ||
-        role === "ADMIN" ||
-        role === "MEMBER";
+    const currentUserId = getCurrentUserId();
 
-    // OWNER and ADMIN only
-    const canDeleteTask =
-        role === "OWNER" ||
-        role === "ADMIN";
+    const [organizationRoles, setOrganizationRoles] = 
+        useState<RoleMap>({});
 
-    // Anyone who can create, update or delete
-    // can see task management controls.
-    const canManageTasks =
-        canCreateTask ||
-        canUpdateTask ||
-        canDeleteTask;
+    const getOrganizationRole = (
+        organizationId: number
+    ): UserRole | undefined => {
+        return organizationRoles[organizationId];
+    };
 
-    /* =========================
-       STATE
-       ========================= */
+    const canCreateTaskInOrganization = (
+        organizationId: number
+    ) => {
+        const role = getOrganizationRole(organizationId);
+
+        return (
+            role === "OWNER" ||
+            role === "ADMIN" ||
+            role === "MEMBER"
+        );
+    };
+
+    const canUpdateTaskInOrganization = (
+        organizationId: number
+    ) => {
+        const role = getOrganizationRole(organizationId);
+    
+        return (
+            role === "OWNER" ||
+            role === "ADMIN" ||
+            role === "MEMBER"
+        );
+    };
+    
+    const canDeleteTaskInOrganization = (
+        organizationId: number
+    ) => {
+        const role = getOrganizationRole(organizationId);
+    
+        return role === "OWNER" || role === "ADMIN";
+    };
+
+    //State
 
     const [organizations, setOrganizations] = useState<
         { id: number; name: string }[]
@@ -142,9 +162,7 @@ function TaskPage() {
     const [editDueDate, setEditDueDate] =
         useState("");
 
-    /* =========================
-       FILTERED DATA
-       ========================= */
+    //Filter Data
 
     const filteredProjects = projects.filter(
         (project) =>
@@ -163,13 +181,24 @@ function TaskPage() {
         return groups;
     }, {});
 
-    /* =========================
-       LOAD DATA
-       ========================= */
+    const visibleTaskCount = selectedProjectId
+    ? tasksByProject[Number(selectedProjectId)]?.length ?? 0
+    : tasks.length;
 
+    //Load Data
     useEffect(() => {
+        let cancelled = false;
+    
         const loadData = async () => {
             try {
+                setError("");
+    
+                if (!currentUserId) {
+                    throw new Error(
+                        "Unable to determine current user"
+                    );
+                }
+    
                 const [
                     taskData,
                     organizationData,
@@ -179,39 +208,143 @@ function TaskPage() {
                     getOrganizations(),
                     getProjects(),
                 ]);
-
+    
+                const roleEntries = await Promise.all(
+                    organizationData.map(
+                        async (organization: Organization) => {
+                            const members =
+                                await getOrganizationMembers(
+                                    organization.id
+                                );
+    
+                            const currentMember = members.find(
+                                (member: OrganizationMember) =>
+                                    Number(member.id) === currentUserId
+                            );
+    
+                            const role =
+                                currentMember?.role?.toUpperCase();
+    
+                            if (
+                                role === "OWNER" ||
+                                role === "ADMIN" ||
+                                role === "MEMBER" ||
+                                role === "VIEWER"
+                            ) {
+                                return [
+                                    organization.id,
+                                    role,
+                                ] as const;
+                            }
+    
+                            return [
+                                organization.id,
+                                undefined,
+                            ] as const;
+                        }
+                    )
+                );
+    
+                if (cancelled) return;
+    
+                const roles: RoleMap = {};
+    
+                for (const [id, role] of roleEntries) {
+                    if (role) {
+                        roles[id] = role;
+                    }
+                }
+    
                 setTasks(taskData);
                 setOrganizations(organizationData);
                 setProjects(projectData);
+                setOrganizationRoles(roles);
             } catch (error) {
+                if (cancelled) return;
+    
                 console.error(
                     "Failed to load task data:",
                     error
                 );
-
-                if (error instanceof Error) {
-                    setError(error.message);
-                } else {
-                    setError(
-                        "Failed to load task data"
-                    );
-                }
+    
+                setError(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to load task data"
+                );
             }
         };
-
+    
         loadData();
+    
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
-    /* =========================
-       CREATE TASK
-       ========================= */
+    // Preselect organization and project from URL
+    useEffect(() => {
+        if (!initialProjectId || projects.length === 0) {
+            return;
+        }
 
+        const parsedProjectId = Number(initialProjectId);
+
+        if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
+            setError("Invalid project ID.");
+            return;
+        }
+
+        const selectedProject = projects.find(
+            (project) => project.id === parsedProjectId
+        );
+
+        if (!selectedProject) {
+            setError("Project not found.");
+            return;
+        }
+
+        setOrganizationId(String(selectedProject.organization_id));
+        setProjectId(String(selectedProject.id));
+    }, [initialProjectId, projects]);
+    
+
+    // Create Task
     const handleCreateTask = async (
         event: React.FormEvent
     ) => {
         event.preventDefault();
 
-        if (!canCreateTask) {
+        if (!organizationId) {
+            setError("Please select an organization.");
+            return;
+        }
+
+        if (!projectId) {
+            setError("Please select a project.");
+            return;
+        }
+
+        const selectedOrganizationId = Number(organizationId);
+        const selectedProjectId = Number(projectId);
+
+        const selectedProject = projects.find(
+            (project) => project.id === selectedProjectId
+        );
+
+        if (
+            !selectedProject ||
+            selectedProject.organization_id !== selectedOrganizationId
+        ) {
+            setError(
+                "The selected project does not belong to this organization."
+            );
+            return;
+        }
+
+        if (
+            !canCreateTaskInOrganization(selectedOrganizationId)
+        ) {
             setError(
                 "You do not have permission to create tasks."
             );
@@ -241,8 +374,10 @@ function TaskPage() {
 
             setTitle("");
             setDescription("");
-            setOrganizationId("");
-            setProjectId("");
+            if (!selectedProject){
+                setOrganizationId("");
+                setProjectId("");
+            }
             setPriority("MEDIUM");
             setStatus("TODO");
             setDueDate("");
@@ -262,122 +397,98 @@ function TaskPage() {
         }
     };
 
-    /* =========================
-       UPDATE TASK
-       ========================= */
+    // Update Task
 
-    const handleUpdateTask = async (
-        taskId: number
-    ) => {
-        if (!canUpdateTask) {
-            setError(
-                "You do not have permission to update tasks."
-            );
+    const handleUpdateTask = async (taskId: number,) => {
+        const task = tasks.find((t) => t.id === taskId);
+
+        if (!task) {
+            setError("Task not found.");
+            return
+        }
+
+        if (!canUpdateTaskInOrganization(task.organization_id)) {
+            setError("You do not have permission to update tasks.");
             return;
         }
 
         setError("");
 
         try {
-            const updatedTask =
-                await updateTask(taskId, {
-                    title: editTitle,
-                    description:
-                        editDescription || null,
-                    status: editStatus,
-                    priority: editPriority,
-                    dueDate:
-                        editDueDate || null,
-                });
+            const updatedTask = await updateTask(taskId, {
+                title: editTitle,
+                description: editDescription || null,
+                status: editStatus,
+                priority: editPriority,
+                dueDate: editDueDate || null,
+            });
 
             setTasks((currentTasks) =>
                 currentTasks.map((task) =>
-                    task.id === taskId
-                        ? updatedTask
-                        : task
+                    task.id === taskId ? updatedTask : task
                 )
             );
 
             setEditingTaskId(null);
         } catch (error) {
-            console.error(
-                "Failed to update task:",
-                error
-            );
+            console.error( "Failed to update task:", error);
 
-            if (error instanceof Error) {
-                setError(error.message);
-            } else {
-                setError(
-                    "Failed to update task"
-                );
-            }
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to update task"
+            )
         }
     };
 
-    /* =========================
-       COMPLETE TASK
-       ========================= */
+    // Complete Task
 
-    const handleCompleteTask = async (
-        task: Task
-    ) => {
-        if (!canUpdateTask) {
-            setError(
-                "You do not have permission to update tasks."
-            );
+    const handleCompleteTask = async (task: Task) => {
+        if (!canUpdateTaskInOrganization(task.organization_id)) {
+            setError("You do not have permission to update tasks.");
             return;
         }
 
         setError("");
 
         try {
-            const updatedTask =
-                await updateTask(task.id, {
-                    title: task.title,
-                    description: task.description,
-                    status: "DONE",
-                    priority: task.priority,
-                    dueDate: task.due_date
-                        ? task.due_date.split("T")[0]
-                        : null,
-                });
+            const updatedTask = await updateTask(task.id, {
+                title: task.title,
+                description: task.description,
+                status: "DONE",
+                priority: task.priority,
+                dueDate: task.due_date
+                    ? task.due_date.split("T")[0]
+                    : null,
+            });
 
             setTasks((currentTasks) =>
-                currentTasks.map(
-                    (currentTask) =>
-                        currentTask.id === task.id
-                            ? updatedTask
-                            : currentTask
+                currentTasks.map((t) =>
+                    t.id === task.id ? updatedTask : t
                 )
             );
         } catch (error) {
-            console.error(
-                "Failed to complete task:",
-                error
-            );
-
-            if (error instanceof Error) {
-                setError(error.message);
-            } else {
-                setError(
-                    "Failed to complete task"
-                );
-            }
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to complete task"
+            )
         }
     };
 
-    /* =========================
-       DELETE TASK
-       ========================= */
+    // Delete Task
 
-    const handleDeleteTask = async (
-        taskId: number
-    ) => {
-        if (!canDeleteTask) {
-            setError(
-                "You do not have permission to delete tasks."
-            );
+    const handleDeleteTask = async (taskId: number) => {
+        const task = tasks.find((t) => t.id === taskId);
+
+        if (!task) {
+            setError("Task not found.");
+            return
+        }
+
+
+        if (!canDeleteTaskInOrganization(task.organization_id)) {
+            setError( "You do not have permission to delete tasks.");
             return;
         }
 
@@ -388,29 +499,21 @@ function TaskPage() {
 
             setTasks((currentTasks) =>
                 currentTasks.filter(
-                    (task) =>
-                        task.id !== taskId
+                    (task) => task.id !== taskId
                 )
             );
         } catch (error) {
-            console.error(
-                "Failed to delete task:",
-                error
-            );
+            console.error("Failed to delete task:", error);
 
-            if (error instanceof Error) {
-                setError(error.message);
-            } else {
-                setError(
-                    "Failed to delete task"
-                );
-            }
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to delete task"
+            )
         }
     };
 
-    /* =========================
-       HELPERS
-       ========================= */
+    // Helpers
 
     function formatDueDate(
         dueDate: string | null
@@ -432,9 +535,7 @@ function TaskPage() {
         <PageLayout title="Tasks">
             <div className="tasks-page">
 
-                {/* =========================
-                    HEADER
-                    ========================= */}
+                {/* HEADER */}
 
                 <div className="tasks-header">
                     <div>
@@ -477,18 +578,20 @@ function TaskPage() {
                     </div>
                 </div>
 
-                {/* =========================
-                    ROLE BADGE
-                    ========================= */}
+                {/* Role Badge */}
 
-                <div className="task-role-badge">
-                    <span>Role</span>
-                    <strong>{role}</strong>
-                </div>
+                {organizationId && (
+                    <div className="task-role-badge">
+                        <span>Role</span>
+                        <strong>
+                            {getOrganizationRole(
+                                Number(organizationId)
+                            ) ?? "Unknown"}
+                        </strong>
+                    </div>
+                )}
 
-                {/* =========================
-                    ERROR
-                    ========================= */}
+                {/* Error */}
 
                 {error && (
                     <div className="error-message">
@@ -496,12 +599,18 @@ function TaskPage() {
                     </div>
                 )}
 
-                {/* =========================
-                    CREATE TASK
-                    OWNER / ADMIN / MEMBER
-                    ========================= */}
+                {/* Create Task - Owner, Admin, Member */}
 
-                {canCreateTask && (
+                {(
+                    selectedProjectId
+                        ? Boolean(
+                            organizationId &&
+                            canCreateTaskInOrganization(Number(organizationId))
+                        )
+                        : organizations.some((organization) =>
+                            canCreateTaskInOrganization(organization.id)
+                        )
+                ) && (
                     <div className="task-form">
                         <div className="section-heading">
                             <div>
@@ -577,10 +686,11 @@ function TaskPage() {
                                             organization
                                         </option>
 
-                                        {organizations.map(
-                                            (
-                                                organization
-                                            ) => (
+                                        {organizations
+                                            .filter((organization) =>
+                                                canCreateTaskInOrganization(organization.id)
+                                            )
+                                            .map((organization) => (
                                                 <option
                                                     key={
                                                         organization.id
@@ -772,9 +882,7 @@ function TaskPage() {
                     </div>
                 )}
 
-                {/* =========================
-                    TASK LIST
-                    ========================= */}
+                {/* Task List */}
 
                 <div className="tasks-section">
                     <div className="tasks-section-heading">
@@ -790,107 +898,135 @@ function TaskPage() {
                         </div>
 
                         <span className="task-count">
-                            {tasks.length}
+                            {visibleTaskCount}
                         </span>
+                        {selectedProjectId && (
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => {
+                                    setSearchParams({});
+                                    setOrganizationId("");
+                                    setProjectId("");
+                                }}
+                            >
+                                Clear Project Filter
+                            </button>
+                        )}
                     </div>
 
-                    {tasks.length === 0 ? (
+                    {visibleTaskCount === 0 ? (
                         <div className="empty-state">
                             <h4>
-                                No tasks found
+                                {selectedProjectId
+                                    ? "No tasks in this project yet"
+                                    : "No tasks found"}
                             </h4>
 
                             <p>
-                                {canCreateTask
-                                    ? "Create your first task to get started."
-                                    : "There are currently no tasks available."}
+                                {organizations.some((organization) =>
+                                    canCreateTaskInOrganization(organization.id)
+                                )
+                                        ? "Create your first task to get started."
+                                        : "There are currently no tasks available."}
                             </p>
                         </div>
                     ) : (
                         <div className="task-groups">
-                            {projects.map(
-                                (project) => {
-                                    const projectTasks =
-                                        sortTasksByUrgency(
-                                            tasksByProject[
-                                                project.id
-                                            ] ?? []
-                                        );
+                            {organizations.map((organization) => {
+                                const organizationProjects = projects.filter(
+                                    (project) =>
+                                        project.organization_id === organization.id
+                                );
 
-                                    if (
-                                        projectTasks.length ===
-                                        0
-                                    ) {
-                                        return null;
-                                    }
+                                const visibleProjects = selectedProjectId
+                                    ? organizationProjects.filter(
+                                        (project) =>
+                                            project.id === Number(selectedProjectId)
+                                    )
+                                    : organizationProjects;
 
-                                    return (
-                                        <div
-                                            key={
-                                                project.id
-                                            }
-                                            className="task-project-group"
-                                        >
-                                            <div className="task-project-heading">
-                                                <div className="task-project-icon">
-                                                    {project.name
-                                                        .charAt(
-                                                            0
-                                                        )
-                                                        .toUpperCase()}
-                                                </div>
+                                const organizationTaskCount = visibleProjects.reduce(
+                                    (total, project) =>
+                                        total + (tasksByProject[project.id]?.length ?? 0), 0
+                                );
+                                const projectsWithTasks = visibleProjects.filter(
+                                    (project) =>
+                                        (tasksByProject[project.id]?.length ?? 0) > 0
+                                );
 
-                                                <div className="task-project-title">
-                                                    <h3>
-                                                        {
-                                                            project.name
-                                                        }
-                                                    </h3>
+                                if (organizationTaskCount === 0) {
+                                    return null;
+                                }
 
-                                                    <span>
-                                                        {
-                                                            projectTasks.length
-                                                        }{" "}
-                                                        {projectTasks.length ===
-                                                        1
-                                                            ? "task"
-                                                            : "tasks"}
-                                                    </span>
-                                                </div>
+                                return (
+                                    <div
+                                        key={organization.id }
+                                        className="task-organization-group"
+                                    >
+                                        <div className="task-organization-heading">
+                                            <div>
+                                                <h2>{organization.name}</h2>
+                                                <p>
+                                                    {projectsWithTasks.length}{" "}
+                                                    {projectsWithTasks.length === 1 ? "project" : "projects"}
+                                                    {" · "}
+                                                    {organizationTaskCount}{" "}
+                                                    {organizationTaskCount === 1
+                                                        ? "task"
+                                                        : "tasks"}
+                                                </p>
                                             </div>
+                                        </div>
 
-                                            <div className="task-list">
-                                                {projectTasks.map(
-                                                    (
-                                                        task
-                                                    ) => (
-                                                        <div
-                                                            key={
-                                                                task.id
-                                                            }
-                                                            className={`task-card ${
-                                                                task.status ===
-                                                                "DONE"
-                                                                    ? "completed"
-                                                                    : ""
-                                                            }`}
-                                                        >
+                                        {visibleProjects.map((project) => {
+                                            const projectTasks = sortTasksByUrgency(
+                                                tasksByProject[project.id] ?? []
+                                            );
+
+                                            if (projectTasks.length === 0) {
+                                                return null;
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={project.id}
+                                                    className="task-project-group"
+                                                >
+                                                    <div className="task-project-heading">
+                                                        <div className="task-project-icon">
+                                                            {project.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                    
+                                                        <div className="task-project-title">
+                                                            <h3>{project.name}</h3>
+                                                            <span>
+                                                                {projectTasks.length}{" "}
+                                                                {projectTasks.length === 1
+                                                                    ? "task"
+                                                                    : "tasks"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="task-list">
+                                                        {projectTasks.map((task) => (
+                                                            <div
+                                                                key={task.id}
+                                                                className={`task-card ${
+                                                                    task.status === "DONE"
+                                                                        ? "completed"
+                                                                        : ""
+                                                                }`}
+                                                            >
                                                             <div className="task-card-header">
-                                                                <h4>
-                                                                    {
-                                                                        task.title
-                                                                    }
-                                                                </h4>
-
+                                                                <h4>{task.title}</h4>
                                                                 <div className="task-badges">
                                                                     <span
                                                                         className={`status-badge status-${task.status.toLowerCase()}`}
                                                                     >
-                                                                        {task.status ===
-                                                                        "TODO"
+                                                                        {task.status === "TODO"
                                                                             ? "To Do"
-                                                                            : task.status ===
-                                                                              "IN_PROGRESS"
+                                                                            : task.status === "IN_PROGRESS"
                                                                             ? "In Progress"
                                                                             : "Done"}
                                                                     </span>
@@ -898,268 +1034,155 @@ function TaskPage() {
                                                                     <span
                                                                         className={`priority-badge priority-${task.priority.toLowerCase()}`}
                                                                     >
-                                                                        {
-                                                                            task.priority
-                                                                        }
+                                                                        {task.priority}
                                                                     </span>
                                                                 </div>
                                                             </div>
 
                                                             <p className="task-description">
-                                                                {task.description ||
-                                                                    "No description"}
+                                                                {task.description || "No description"}
                                                             </p>
 
                                                             <p className="task-due-date">
-                                                                Due
-                                                                Date:{" "}
-                                                                {formatDueDate(
-                                                                    task.due_date
-                                                                )}
+                                                                Due Date: {formatDueDate(task.due_date)}
                                                             </p>
 
-                                                            {/* =========================
-                                                                TASK ACTIONS
-                                                                ========================= */}
-
-                                                            {task.status !==
-                                                                "DONE" &&
-                                                                canManageTasks && (
-                                                                    <div className="task-actions">
-
-                                                                        {/* OWNER / ADMIN / MEMBER */}
-
-                                                                        {canUpdateTask && (
-                                                                            <>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() =>
-                                                                                        handleCompleteTask(
-                                                                                            task
-                                                                                        )
-                                                                                    }
-                                                                                >
-                                                                                    Mark
-                                                                                    Done
-                                                                                </button>
-
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="secondary"
-                                                                                    onClick={() => {
-                                                                                        setEditingTaskId(
-                                                                                            task.id
-                                                                                        );
-
-                                                                                        setEditTitle(
-                                                                                            task.title
-                                                                                        );
-
-                                                                                        setEditDescription(
-                                                                                            task.description ??
-                                                                                                ""
-                                                                                        );
-
-                                                                                        setEditStatus(
-                                                                                            task.status
-                                                                                        );
-
-                                                                                        setEditPriority(
-                                                                                            task.priority
-                                                                                        );
-
-                                                                                        setEditDueDate(
-                                                                                            task.due_date
-                                                                                                ? task.due_date.split(
-                                                                                                      "T"
-                                                                                                  )[0]
-                                                                                                : ""
-                                                                                        );
-                                                                                    }}
-                                                                                >
-                                                                                    Edit
-                                                                                </button>
-                                                                            </>
-                                                                        )}
-
-                                                                        {/* OWNER / ADMIN ONLY */}
-
-                                                                        {canDeleteTask && (
+                                                            {(canUpdateTaskInOrganization(task.organization_id) ||
+                                                            canDeleteTaskInOrganization(task.organization_id)) && (
+                                                                <div className="task-actions">
+                                                                    {task.status !== "DONE" &&
+                                                                        canUpdateTaskInOrganization(task.organization_id) && (
                                                                             <button
                                                                                 type="button"
-                                                                                className="danger"
-                                                                                onClick={() =>
-                                                                                    handleDeleteTask(
-                                                                                        task.id
-                                                                                    )
-                                                                                }
+                                                                                onClick={() => handleCompleteTask(task)}
                                                                             >
-                                                                                Delete
+                                                                                Mark Done
                                                                             </button>
                                                                         )}
-                                                                    </div>
-                                                                )}
 
-                                                            {/* =========================
-                                                                EDIT TASK
-                                                                OWNER / ADMIN / MEMBER
-                                                                ========================= */}
+                                                                    {/* Edit: authorized users, active or completed tasks */}
+                                                                    {canUpdateTaskInOrganization(task.organization_id) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="secondary"
+                                                                            onClick={() => {
+                                                                                setEditingTaskId(task.id);
+                                                                                setEditTitle(task.title);
+                                                                                setEditDescription(task.description ?? "");
+                                                                                setEditStatus(task.status);
+                                                                                setEditPriority(task.priority);
+                                                                                setEditDueDate(
+                                                                                    task.due_date
+                                                                                        ? task.due_date.split("T")[0]
+                                                                                        : ""
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            Edit
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* Delete: Owner/Admin, regardless of task status */}
+                                                                    {canDeleteTaskInOrganization(task.organization_id) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="danger"
+                                                                            onClick={() => handleDeleteTask(task.id)}
+                                                                        >
+                                                                            Delete
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
 
                                                             {editingTaskId ===
                                                                 task.id &&
-                                                                canUpdateTask && (
+                                                                canUpdateTaskInOrganization(task.organization_id) && (
                                                                     <div className="edit-task">
-                                                                        <h5>
-                                                                            Edit
-                                                                            Task
-                                                                        </h5>
-
+                                                                        <h5>Edit Task</h5>
                                                                         <div className="form-field">
-                                                                            <label
-                                                                                htmlFor={`edit-title-${task.id}`}
-                                                                            >
+                                                                            <label htmlFor={`edit-title-${task.id}`}>
                                                                                 Title
                                                                             </label>
 
                                                                             <input
                                                                                 id={`edit-title-${task.id}`}
                                                                                 type="text"
-                                                                                value={
-                                                                                    editTitle
-                                                                                }
-                                                                                onChange={(
-                                                                                    event
-                                                                                ) =>
-                                                                                    setEditTitle(
-                                                                                        event
-                                                                                            .target
-                                                                                            .value
-                                                                                    )
+                                                                                value={editTitle}
+                                                                                onChange={(event) =>
+                                                                                    setEditTitle(event.target.value)
                                                                                 }
                                                                             />
                                                                         </div>
 
                                                                         <div className="form-field">
-                                                                            <label
-                                                                                htmlFor={`edit-description-${task.id}`}
-                                                                            >
+                                                                            <label htmlFor={`edit-description-${task.id}`}>
                                                                                 Description
                                                                             </label>
 
                                                                             <textarea
                                                                                 id={`edit-description-${task.id}`}
-                                                                                value={
-                                                                                    editDescription
-                                                                                }
-                                                                                onChange={(
-                                                                                    event
-                                                                                ) =>
-                                                                                    setEditDescription(
-                                                                                        event
-                                                                                            .target
-                                                                                            .value
-                                                                                    )
+                                                                                value={editDescription}
+                                                                                onChange={(event) =>
+                                                                                    setEditDescription(event.target.value)
                                                                                 }
                                                                             />
                                                                         </div>
 
                                                                         <div className="task-form-grid">
                                                                             <div className="form-field">
-                                                                                <label
-                                                                                    htmlFor={`edit-status-${task.id}`}
-                                                                                >
+                                                                                <label htmlFor={`edit-status-${task.id}`}>
                                                                                     Status
                                                                                 </label>
 
                                                                                 <select
                                                                                     id={`edit-status-${task.id}`}
-                                                                                    value={
-                                                                                        editStatus
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        setEditStatus(
-                                                                                            event
-                                                                                                .target
-                                                                                                .value
-                                                                                        )
+                                                                                    value={editStatus}
+                                                                                    onChange={(event) =>
+                                                                                        setEditStatus(event.target.value)
                                                                                     }
                                                                                 >
-                                                                                    <option value="TODO">
-                                                                                        To
-                                                                                        Do
-                                                                                    </option>
+                                                                                    <option value="TODO">To Do</option>
 
                                                                                     <option value="IN_PROGRESS">
-                                                                                        In
-                                                                                        Progress
+                                                                                        In Progress
                                                                                     </option>
 
-                                                                                    <option value="DONE">
-                                                                                        Done
-                                                                                    </option>
+                                                                                    <option value="DONE">Done</option>
                                                                                 </select>
                                                                             </div>
 
                                                                             <div className="form-field">
-                                                                                <label
-                                                                                    htmlFor={`edit-priority-${task.id}`}
-                                                                                >
+                                                                                <label htmlFor={`edit-priority-${task.id}`}>
                                                                                     Priority
                                                                                 </label>
 
                                                                                 <select
                                                                                     id={`edit-priority-${task.id}`}
-                                                                                    value={
-                                                                                        editPriority
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        setEditPriority(
-                                                                                            event
-                                                                                                .target
-                                                                                                .value
-                                                                                        )
+                                                                                    value={editPriority}
+                                                                                    onChange={(event) =>
+                                                                                        setEditPriority(event.target.value)
                                                                                     }
                                                                                 >
-                                                                                    <option value="LOW">
-                                                                                        Low
-                                                                                    </option>
+                                                                                    <option value="LOW">Low</option>
 
-                                                                                    <option value="MEDIUM">
-                                                                                        Medium
-                                                                                    </option>
+                                                                                    <option value="MEDIUM">Medium</option>
 
-                                                                                    <option value="HIGH">
-                                                                                        High
-                                                                                    </option>
+                                                                                    <option value="HIGH">High</option>
                                                                                 </select>
                                                                             </div>
 
                                                                             <div className="form-field">
-                                                                                <label
-                                                                                    htmlFor={`edit-due-date-${task.id}`}
-                                                                                >
-                                                                                    Due
-                                                                                    Date
+                                                                                <label htmlFor={`edit-due-date-${task.id}`}>
+                                                                                    Due Date
                                                                                 </label>
 
                                                                                 <input
                                                                                     id={`edit-due-date-${task.id}`}
                                                                                     type="date"
-                                                                                    value={
-                                                                                        editDueDate
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        setEditDueDate(
-                                                                                            event
-                                                                                                .target
-                                                                                                .value
-                                                                                        )
+                                                                                    value={editDueDate}
+                                                                                    onChange={(event) =>
+                                                                                        setEditDueDate(event.target.value)
                                                                                     }
                                                                                 />
                                                                             </div>
@@ -1169,9 +1192,7 @@ function TaskPage() {
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() =>
-                                                                                    handleUpdateTask(
-                                                                                        task.id
-                                                                                    )
+                                                                                    handleUpdateTask(task.id,)
                                                                                 }
                                                                             >
                                                                                 Save
@@ -1181,9 +1202,7 @@ function TaskPage() {
                                                                                 type="button"
                                                                                 className="secondary"
                                                                                 onClick={() =>
-                                                                                    setEditingTaskId(
-                                                                                        null
-                                                                                    )
+                                                                                    setEditingTaskId(null)
                                                                                 }
                                                                             >
                                                                                 Cancel
@@ -1191,14 +1210,15 @@ function TaskPage() {
                                                                         </div>
                                                                     </div>
                                                                 )}
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                            )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

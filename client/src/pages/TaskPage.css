@@ -2,9 +2,7 @@
     width: 100%;
 }
 
-/* =========================
-   HEADER
-   ========================= */
+/* Headers */
 
 .tasks-header {
     display: flex;
@@ -674,4 +672,34 @@
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.04em;
+}
+
+.task-organization-group {
+    margin-bottom: 32px;
+}
+
+.task-organization-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+}
+
+.task-organization-heading h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.task-organization-heading p {
+    margin: 6px 0 0;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.875rem;
+}
+
+.task-organization-group .task-project-group {
+    margin-left: 16px;
+    margin-bottom: 24px;
 }
